@@ -1,7 +1,7 @@
-# Environment files
+# Environment files (NEVER commit!)
 .env
-.env.docker
-.env.docker.backup
+.env.*
+*.env.backup
 
 # Python
 __pycache__/
@@ -11,20 +11,61 @@ __pycache__/
 .Python
 venv/
 hostel_env/
+env/
+ENV/
+*.pyc
+*.pyo
+.pytest_cache/
 
 # Django
 *.log
 db.sqlite3
 db.sqlite3-journal
-static/
-media/
+/static/
+/media/
+local_settings.py
 
 # Node
 node_modules/
-build/
-.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+/build/
+.npm
+package-lock.json
 
 # Docker
 *.pid
-*.seed
-*.log
+docker-compose.override.yml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db
+*~
+
+# Backups & dumps
+*.sql
+*.json.backup
+datadump*.json
+fresh_datadump.json
+
+# Zone identifier (Windows)
+*.Identifier
+*Zone.Identifier
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Temporary folders
+TempRN/
+hostel_Phone_app/
+SreeLakshmiTenantsApp/
