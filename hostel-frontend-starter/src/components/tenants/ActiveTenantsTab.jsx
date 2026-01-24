@@ -1,0 +1,274 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { enhancedAPI } from '../../api';
+import { useUser } from '../../contexts/UserContext';
+import TenantTable from './TenantTable';
+import TenantForm from '../TenantForm';
+import TenantDetailsDialog from './TenantDetailsDialog';
+import {
+  Button,
+  Box,
+  TextField,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Select,
+  Snackbar,
+  Alert,
+  CircularProgress
+} from '@mui/material';
+import { Add as AddIcon } from '@mui/icons-material';
+
+/**
+ * Active Tenants Tab
+ * Displays currently active tenants with full CRUD operations
+ */
+function ActiveTenantsTab() {
+  const [tenants, setTenants] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedBranch, setSelectedBranch] = useState('all');
+  const [tenantFormOpen, setTenantFormOpen] = useState(false);
+  const [editingTenant, setEditingTenant] = useState(null);
+  const [detailsDialog, setDetailsDialog] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState(null);
+  const [alert, setAlert] = useState({ open: false, message: '', severity: 'success' });
+  const [checkoutDialog, setCheckoutDialog] = useState(false);
+  const [checkoutTenant, setCheckoutTenant] = useState(null);
+  const [vacatingDate, setVacatingDate] = useState('');
+
+  const { hasAnyRole } = useUser();
+
+  useEffect(() => {
+    fetchBranches();
+  }, []);
+
+  useEffect(() => {
+    if (branches.length > 0) {
+      fetchActiveTenants();
+    }
+  }, [selectedBranch, searchTerm, branches]);
+
+  const fetchBranches = async () => {
+    try {
+      const response = await enhancedAPI.branches.list();
+      setBranches(response.data);
+    } catch (error) {
+      console.error('Error fetching branches:', error);
+      showAlert('Failed to load branches', 'error');
+    }
+  };
+
+  const fetchActiveTenants = async () => {
+    try {
+      setLoading(true);
+      
+      // Backend filters active tenants (vacating_date=null)
+      const params = { status: 'active' };
+      
+      if (selectedBranch !== 'all') {
+        params.branch = selectedBranch;
+      }
+      if (searchTerm.trim()) {
+        params.search = searchTerm.trim();
+      }
+      
+      const response = await enhancedAPI.tenants.list(params);
+      setTenants(response.data);
+    } catch (error) {
+      console.error('Error fetching active tenants:', error);
+      showAlert('Failed to load active tenants', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const showAlert = (message, severity = 'success') => {
+    setAlert({ open: true, message, severity });
+  };
+
+  const handleAdd = () => {
+    setEditingTenant(null);
+    setTenantFormOpen(true);
+  };
+
+  const handleEdit = async (tenant) => {
+    try {
+      const response = await enhancedAPI.tenants.get(tenant.id);
+      setEditingTenant(response.data);
+      setTenantFormOpen(true);
+    } catch (error) {
+      console.error('Error fetching tenant details:', error);
+      showAlert('Failed to load tenant details', 'error');
+    }
+  };
+
+  const handleView = async (tenant) => {
+    try {
+      const response = await enhancedAPI.tenants.get(tenant.id);
+      setSelectedTenant(response.data);
+      setDetailsDialog(true);
+    } catch (error) {
+      console.error('Error fetching tenant details:', error);
+      showAlert('Failed to load tenant details', 'error');
+    }
+  };
+
+  const handleDelete = async (tenant) => {
+    if (window.confirm(`Are you sure you want to delete "${tenant.name}"? Consider using Checkout instead to preserve history.`)) {
+      try {
+        await enhancedAPI.tenants.delete(tenant.id);
+        showAlert('Tenant deleted successfully');
+        fetchActiveTenants();
+      } catch (error) {
+        console.error('Error deleting tenant:', error);
+        showAlert('Failed to delete tenant', 'error');
+      }
+    }
+  };
+
+  const handleCheckout = (tenant) => {
+    setCheckoutTenant(tenant);
+    const today = new Date().toISOString().split('T')[0];
+    setVacatingDate(today);
+    setCheckoutDialog(true);
+  };
+
+  const handleCheckoutConfirm = async () => {
+    if (!checkoutTenant || !vacatingDate) {
+      showAlert('Please select a vacating date', 'error');
+      return;
+    }
+
+    try {
+      await enhancedAPI.tenants.checkout(checkoutTenant.id, { vacating_date: vacatingDate });
+      showAlert('Tenant checked out successfully');
+      setCheckoutDialog(false);
+      setCheckoutTenant(null);
+      setVacatingDate('');
+      fetchActiveTenants();
+    } catch (error) {
+      console.error('Error checking out tenant:', error);
+      showAlert('Failed to checkout tenant', 'error');
+    }
+  };
+
+  const handleFormClose = () => {
+    setTenantFormOpen(false);
+    setEditingTenant(null);
+  };
+
+  const handleFormSave = () => {
+    fetchActiveTenants();
+    setTenantFormOpen(false);
+    setEditingTenant(null);
+    showAlert(editingTenant ? 'Tenant updated successfully' : 'Tenant added successfully');
+  };
+
+  const canEdit = hasAnyRole(['owner', 'admin', 'warden']);
+  const canDelete = hasAnyRole(['owner', 'admin']);
+  const canAdd = hasAnyRole(['owner', 'admin', 'warden']);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ p: 3 }}>
+      {/* Filters and Actions */}
+      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+        <TextField
+          label="Search tenants..."
+          placeholder="Name, phone, email, room..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          size="small"
+          sx={{ flexGrow: 1, minWidth: '200px' }}
+        />
+        
+        <FormControl size="small" sx={{ minWidth: '150px' }}>
+          <InputLabel>Branch</InputLabel>
+          <Select
+            value={selectedBranch}
+            onChange={(e) => setSelectedBranch(e.target.value)}
+            label="Branch"
+          >
+            <MenuItem value="all">All Branches</MenuItem>
+            {branches.map((branch) => (
+              <MenuItem key={branch.id} value={branch.id}>
+                {branch.name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        {canAdd && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAdd}
+          >
+            Add Tenant
+          </Button>
+        )}
+      </Box>
+
+      {/* Tenant Table */}
+      <TenantTable
+        tenants={tenants}
+        loading={loading}
+        readOnly={false}
+        showVacatedDate={false}
+        canEdit={canEdit}
+        canDelete={canDelete}
+        onView={handleView}
+        onEdit={handleEdit}
+        onCheckout={handleCheckout}
+        onDelete={handleDelete}
+      />
+
+      {/* Tenant Form Dialog */}
+      {tenantFormOpen && (
+        <TenantForm
+          open={tenantFormOpen}
+          onClose={handleFormClose}
+          onSave={handleFormSave}
+          tenant={editingTenant}
+        />
+      )}
+
+      {/* Tenant Details Dialog */}
+      {detailsDialog && (
+        <TenantDetailsDialog
+          open={detailsDialog}
+          onClose={() => setDetailsDialog(false)}
+          tenant={selectedTenant}
+        />
+      )}
+
+      {/* Checkout Confirmation Dialog */}
+      {checkoutDialog && (
+        <Box component="dialog" open={checkoutDialog}>
+          {/* TODO: Create proper checkout dialog component */}
+        </Box>
+      )}
+
+      {/* Alert Snackbar */}
+      <Snackbar
+        open={alert.open}
+        autoHideDuration={6000}
+        onClose={() => setAlert({ ...alert, open: false })}
+      >
+        <Alert onClose={() => setAlert({ ...alert, open: false })} severity={alert.severity}>
+          {alert.message}
+        </Alert>
+      </Snackbar>
+    </Box>
+  );
+}
+
+export default ActiveTenantsTab;

@@ -3,6 +3,7 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.pagination import PageNumberPagination
 from django.contrib.auth.models import User
 from django.db.models import Q, Count, Sum
 from django.shortcuts import get_object_or_404
@@ -29,6 +30,14 @@ from .decorators import (
     require_branch_permission, tenant_access_only, log_access_attempt,
     PermissionChecker
 )
+
+
+# Pagination for vacated tenants
+class TenantPagination(PageNumberPagination):
+    """Custom pagination for vacated tenants"""
+    page_size = 25
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 
 class RoleBasedViewSet(viewsets.ModelViewSet):
@@ -259,10 +268,58 @@ class RoomViewSet(RoleBasedViewSet):
 
 
 class TenantViewSet(RoleBasedViewSet):
-    """Tenant management with role-based access control"""
-    queryset = Tenant.objects.all()
+    """Enhanced tenant management with role-based access control, status filtering, and pagination"""
+    queryset = Tenant.objects.select_related('room', 'room__branch', 'user')
     serializer_class = TenantSerializer
     permission_classes = [permissions.IsAuthenticated, IsTenantOwner]
+    pagination_class = TenantPagination
+    
+    def get_queryset(self):
+        """Filter and optimize queryset with status-based filtering"""
+        queryset = super().get_queryset()
+        
+        # Apply role-based filtering first
+        if not hasattr(self.request.user, 'profile'):
+            return queryset.none()
+        
+        user_role = self.request.user.profile.role
+        queryset = self.filter_queryset_by_role(queryset, user_role)
+        
+        # Status filtering (active, vacated, pending)
+        status_param = self.request.query_params.get('status')
+        if status_param == 'active':
+            # Active: has joining_date, no vacating_date
+            queryset = queryset.filter(
+                joining_date__isnull=False,
+                vacating_date__isnull=True
+            ).order_by('name')
+        elif status_param == 'vacated':
+            # Vacated: has vacating_date set
+            queryset = queryset.filter(
+                vacating_date__isnull=False
+            ).order_by('-vacating_date')  # Most recent first
+        elif status_param == 'pending':
+            # Pending: no joining_date yet
+            queryset = queryset.filter(
+                joining_date__isnull=True
+            ).order_by('created_at')
+        
+        # Branch filtering
+        branch_id = self.request.query_params.get('branch')
+        if branch_id and branch_id != 'all':
+            queryset = queryset.filter(room__branch_id=branch_id)
+        
+        # Search filtering
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(phone_number__icontains=search) |
+                Q(email__icontains=search) |
+                Q(room__room_name__icontains=search)
+            )
+        
+        return queryset
     
     def filter_queryset_by_role(self, queryset, user_role):
         """Filter tenants based on user role"""
@@ -282,6 +339,22 @@ class TenantViewSet(RoleBasedViewSet):
             except:
                 return queryset.none()
         return queryset.none()
+    
+    def list(self, request, *args, **kwargs):
+        """Custom list with conditional pagination"""
+        queryset = self.filter_queryset(self.get_queryset())
+        status_param = request.query_params.get('status')
+        
+        # Only paginate vacated tenants (can grow to thousands)
+        if status_param == 'vacated':
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+        
+        # No pagination for active/pending tenants (typically < 200 records)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
     
     @method_decorator(require_warden_permission('can_manage_tenants'))
     def create(self, request, *args, **kwargs):
@@ -323,6 +396,47 @@ class TenantViewSet(RoleBasedViewSet):
         payments = RentPayment.objects.filter(tenant=tenant).order_by('-payment_date')
         serializer = RentPaymentSerializer(payments, many=True)
         return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def checkout(self, request, pk=None):
+        """Checkout tenant (set vacating_date)"""
+        tenant = self.get_object()
+        vacating_date = request.data.get('vacating_date')
+        
+        if not vacating_date:
+            return Response(
+                {'error': 'vacating_date is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        tenant.vacating_date = vacating_date
+        tenant.save()
+        
+        serializer = self.get_serializer(tenant)
+        return Response({
+            'message': 'Tenant checked out successfully',
+            'tenant': serializer.data
+        })
+    
+    @action(detail=True, methods=['post'])
+    def reactivate(self, request, pk=None):
+        """Reactivate vacated tenant (clear vacating_date)"""
+        tenant = self.get_object()
+        
+        if not tenant.vacating_date:
+            return Response(
+                {'error': 'Tenant is already active'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        tenant.vacating_date = None
+        tenant.save()
+        
+        serializer = self.get_serializer(tenant)
+        return Response({
+            'message': 'Tenant reactivated successfully',
+            'tenant': serializer.data
+        })
 
 
 class RentPaymentViewSet(RoleBasedViewSet):

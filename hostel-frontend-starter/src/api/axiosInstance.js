@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+// Get API URL from environment variable or use default
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
+
 const axiosInstance = axios.create({
-  baseURL: 'http://127.0.0.1:8000',
+  baseURL: API_BASE_URL,
   headers: {
     Authorization: `Bearer ${localStorage.getItem('access')}`
   }

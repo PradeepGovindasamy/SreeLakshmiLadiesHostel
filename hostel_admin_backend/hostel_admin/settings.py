@@ -1,14 +1,17 @@
 import os
 from pathlib import Path
 from datetime import timedelta
+from decouple import config
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'your-secret-key'
+SECRET_KEY = config('SECRET_KEY', default='your-secret-key')
 
-DEBUG = True
+DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = []
+# Read ALLOWED_HOSTS from environment variable, default to common hosts
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,backend,0.0.0.0').split(',')
 
 # Enhanced Password Security - temporarily reverted to defaults
 # PASSWORD_HASHERS = [
@@ -58,25 +61,8 @@ INSTALLED_APPS = [
     'core',
 ]
 
-# Firebase Configuration
-FIREBASE_PROJECT_ID = 'srilakshmiladieshostel-daca8'
-FIREBASE_API_KEY = 'AIzaSyARytYNTnnzBsBXfHygeNVaKsb8S9Si0YI'
-FIREBASE_AUTH_DOMAIN = 'srilakshmiladieshostel-daca8.firebaseapp.com'
-FIREBASE_STORAGE_BUCKET = 'srilakshmiladieshostel-daca8.firebasestorage.app'
-FIREBASE_MESSAGING_SENDER_ID = '681210557169'
-FIREBASE_APP_ID = '1:681210557169:web:5c20d69891ef895cefef50'
-FIREBASE_MEASUREMENT_ID = 'G-F72CPFRGFS'
-
-# Service Account Configuration (to be updated with your service account details)
-FIREBASE_CLIENT_EMAIL = 'firebase-adminsdk-fbsvc@srilakshmiladieshostel-daca8.iam.gserviceaccount.com'
-FIREBASE_CLIENT_ID = '101563978609495690943'
-FIREBASE_PRIVATE_KEY_ID = 'b3ad3da1ba4cb4a5dce41639ddfbdf3eade9b085'
-FIREBASE_PRIVATE_KEY = '-----BEGIN PRIVATE KEY-----\\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDLXp0GewyCv8dM\\nMgVL0gQIFumjweOzWS//NDnqfuphmut4l+UoVi24RT+xDSRUaHsySw80Gpob9QD8\\nSDNSflJOD1flBJ5pf8lceoeY8eS4FAVYTpZHl7EzN2mHgegC4INTV2QcKc7aq8Jf\\nuOakhsmOSpw/9vI5sGQIeNZ3D67RUi71niJCkaYgYO8Kgx/Mj+lMt2WDvof4rL6d\\n+OhUbSCHuA4IwMSfe4ZC4SzMh2gD6WpSs3bpHH04mO0B1IQuYmctc5DuwM7BAu0I\\nJTwqkPNNSY4Vt+nTnGZ6eMrhy7ie6vH9QWp4k2Vnw/N3fdQF6jnO9hvpBK2G4YfP\\nsarvrfAlAgMBAAECgf8l/7JXWPvSx61Kug3t8iUkCHlJ9RsWkmjlcQdhSVWB50XC\\nwp7kFTYgYtADxPDaKgDa5NYdENtlXeH77CxVaET4pjqbZWwz9Ncq8GS7BHeNQtsS\\nJPJEw5Mt1AIOemIKJ5O3fsdge8SqwcJlIFH4FoySibOoP/wCdh2QIllFkH3u85aP\\nUGAkvAzbr/bYnOdENKQ1Ik7XSktkTuPslGW6BCEmIghMjz/xD7Mcwi04kqzV8E/H\\ncZAEeeu5YdjPS682VJ7ttkZ9Rf6vkrsLQelbMUSgW53waWhtbFWsKNahyadyFTnu\\n2v9uoqqYna1q5Pnv/AdyWJGXyQplidwthR/I1y8CgYEA+Rv10p3oScY+NR5dnLmw\\nSW1vckgTzgcUf3mPS2Hi725BXomYI661NRxLVUheSktenegUfF+ycsiM/RISEtgh\\npyTaUyAU9UV5KqQCD1H3ezrL+6ys95V1fgZoQwS5PZPt/AD0S/3Pl0YQJz326R1R\\nS8yDOaqae+9Sq66MkgUgD/cCgYEA0P7AvZXM5TjAqpRRqveHz5yxHxMAhiBSDbtR\\nl717zFBBFnBlBbp7hqHnP/0G4nJboG9/tvQ+qewx6Y6pf5ELO4ZfECFdcHJBEEJO\\nOoJph1BBZgFrNRxEuY7a9ASJXiR6s+SsCjVee7i4k9mzMWIeA8kjaiccxLAcNCuZ\\nOS6IscMCgYBS381xa107JfvOGjMUj+YpF4JLJ9WG5m4YVq2oa4FfHHQc6nO180qP\\nx8D8N14/I0HwEKS4F/I7I6NcEiX3JPZVL/p+Sx8N1jYQTI3u4NsPoSj5qqHEoHF9\\nIs6O9URXSx6ShxK/MUpdzk5Tb9b0CO/h4sEJb0uDzcPYH/LeJVxcUwKBgQC3sNGz\\nUHDwn7snsok9Xabu4WgESe1R9iJok1WZqx+eaoNqt4rzR/6+TJs2cKyWZ7EFCDsW\\nkQJq04DjKVLtHozi2q2/PbQk2yc4pS6g2nLqTa3NfD3ARoJZHahwhXQ/XIzEhJ55\\nsoLC946z1MpdA0IiTa1k5c+xSKDhcdiQm8flhQKBgQCMragWplMKZN21ng6kxSJN\\nEW/OzMdLLOwUuIg6Ici3jGMFwmlt3hWoFmBjO8qhKzZItunjZskNFV+wMUatq+p9\\nFzqXw9dfp3WWOTrMp41i56S/QqRMbkqid80RFBwQahuOJ20yNMLhPEHEQOnk33hF\\nIJ8E8gfNYPkM5Pmu86Pj7Q==\\n-----END PRIVATE KEY-----\\n'
-FIREBASE_CLIENT_CERT_URL = 'https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40srilakshmiladieshostel-daca8.iam.gserviceaccount.com'
-
 # Authentication Backends
 AUTHENTICATION_BACKENDS = [
-    'core.firebase_auth.FirebaseAuthentication',  # Custom Firebase backend
     'django.contrib.auth.backends.ModelBackend',  # Default Django backend
 ]
 
@@ -111,12 +97,31 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'hostel_admin.wsgi.application'
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Database Configuration
+# Use PostgreSQL if DATABASE_URL is set or if DB_NAME is configured
+# Otherwise, fall back to SQLite
+if config('DATABASE_URL', default=None):
+    DATABASES = {
+        'default': dj_database_url.config(default=config('DATABASE_URL'))
     }
-}
+elif config('DB_NAME', default=None):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME'),
+            'USER': config('DB_USER', default='postgres'),
+            'PASSWORD': config('DB_PASSWORD', default='postgres'),
+            'HOST': config('DB_HOST', default='localhost'),
+            'PORT': config('DB_PORT', default='5432'),
+        }
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = []
 
@@ -126,8 +131,24 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+
+MEDIA_URL = 'media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Email Configuration for Password Reset
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='sreelakshmiladieshostel91@gmail.com')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='sreelakshmiladieshostel91@gmail.com')
+
+# Frontend URL for password reset links (Docker uses port 80)
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost')
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -141,13 +162,13 @@ REST_FRAMEWORK = {
 # JWT Configuration for Hostel Management System
 SIMPLE_JWT = {
     # Token Lifetimes
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),  # 30 minutes for API requests
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=2),     # 2 hours for API requests (reduced refresh frequency)
     'REFRESH_TOKEN_LIFETIME': timedelta(days=30),    # 30 days for tenants (convenient)
     
     # Security Settings
     'ROTATE_REFRESH_TOKENS': True,          # Generate new refresh token on use
-    'BLACKLIST_AFTER_ROTATION': True,      # Blacklist old refresh tokens
-    'UPDATE_LAST_LOGIN': True,             # Update user's last login time
+    'BLACKLIST_AFTER_ROTATION': False,      # Don't blacklist to avoid issues (enable if you add token blacklist app)
+    'UPDATE_LAST_LOGIN': True,              # Update user's last login time
     
     # Token Types
     'ALGORITHM': 'HS256',
@@ -163,6 +184,11 @@ SIMPLE_JWT = {
     # Token Refresh
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
+    
+    # Sliding token - automatically extends token lifetime on each request
+    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
+    'SLIDING_TOKEN_LIFETIME': timedelta(hours=2),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=7),
 }
 
 CORS_ALLOW_ALL_ORIGINS = True

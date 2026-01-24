@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: hostel-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-hostel_management}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - hostel-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-hostel_management}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis Cache (optional but recommended)
+  redis:
+    image: redis:7-alpine
+    container_name: hostel-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - hostel-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Django Backend
+  backend:
+    build:
+      context: ./hostel_admin_backend
+      dockerfile: Dockerfile
+    container_name: hostel-backend
+    environment:
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - DB_NAME=${DB_NAME:-hostel_management}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:80}
+      - REDIS_URL=redis://redis:6379/0
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER:-sreelakshmiladieshostel91@gmail.com}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL:-sreelakshmiladieshostel91@gmail.com}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    networks:
+      - hostel-network
+    volumes:
+      - static_files:/app/static
+      - media_files:/app/media
+      # Development only - comment out for production
+      # - ./hostel_admin_backend:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/admin/login/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./hostel-frontend-starter
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+    container_name: hostel-frontend
+    environment:
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "3000:80"
+    networks:
+      - hostel-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+networks:
+  hostel-network:
+    driver: bridge
+    name: hostel-network
+
+volumes:
+  postgres_data:
+    name: hostel-postgres-data
+  static_files:
+    name: hostel-static-files
+  media_files:
+    name: hostel-media-files

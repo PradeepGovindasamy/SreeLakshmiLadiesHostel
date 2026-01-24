@@ -6,14 +6,11 @@ from .views import BranchViewSet, RoomViewSet, TenantViewSet, RoomOccupancyViewS
 from .views_auth import (
     login_view, user_detail_view, user_profile_view, 
     UserManagementViewSet, available_branches, CustomTokenObtainPairView,
-    create_user_with_profile_standalone
+    create_user_with_profile_standalone, password_reset_request, password_reset_confirm
 )
 from .views_enhanced import (
     EnhancedBranchViewSet, EnhancedRoomViewSet, EnhancedTenantViewSet,
     EnhancedRoomOccupancyViewSet, EnhancedRentPaymentViewSet
-)
-from .views_firebase import (
-    send_otp, verify_otp, firebase_login, verify_token
 )
 
 # Create routers for different API versions
@@ -47,11 +44,9 @@ urlpatterns = [
     path('auth/token/', CustomTokenObtainPairView.as_view(), name='auth-token'),
     path('auth/branches/', available_branches, name='auth-available-branches'),
     
-    # Firebase Authentication endpoints
-    path('auth/send-otp/', send_otp, name='send_otp'),
-    path('auth/verify-otp/', verify_otp, name='verify_otp'),
-    path('auth/firebase-login/', firebase_login, name='firebase_login'),
-    path('auth/verify-token/', verify_token, name='verify_token'),
+    # Password Reset endpoints
+    path('auth/password-reset/', password_reset_request, name='password-reset-request'),
+    path('auth/password-reset/confirm/', password_reset_confirm, name='password-reset-confirm'),
     
     # User creation endpoints (multiple approaches to ensure it works)
     path('users/create_with_profile/', UserManagementViewSet.as_view({'post': 'create_with_profile'}), name='create-user-with-profile'),

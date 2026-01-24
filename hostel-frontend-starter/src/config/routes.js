@@ -1,10 +1,12 @@
 // src/config/routes.js
 import LoginForm from '../components/LoginForm';
 import LoginPage from '../pages/LoginPage';
+import ForgotPasswordPage from '../pages/ForgotPasswordPage';
+import PasswordResetConfirmPage from '../pages/PasswordResetConfirmPage';
 import ConditionalDashboard from '../components/ConditionalDashboard';
 import Branches from '../components/Branches';
 import Rooms from '../components/Rooms';
-import Tenants from '../components/Tenants';
+import SimpleTenants from '../components/SimpleTenants';
 import RoomStatus from '../components/RoomStatus';
 import RoleTestPage from '../components/RoleTestPage';
 import RoleFilteredBranches from '../components/RoleFilteredBranches';
@@ -16,13 +18,13 @@ export const routeConfig = [
   // Public routes (no authentication required)
   {
     path: '/',
-    component: LoginPage, // Updated to use new login page with phone OTP
+    component: LoginPage,
     isPublic: true,
     title: 'Login'
   },
   {
     path: '/login',
-    component: LoginPage, // Alternative login route
+    component: LoginPage,
     isPublic: true,
     title: 'Login'
   },
@@ -31,6 +33,18 @@ export const routeConfig = [
     component: LoginForm, // Keep old login for fallback
     isPublic: true,
     title: 'Traditional Login'
+  },
+  {
+    path: '/forgot-password',
+    component: ForgotPasswordPage,
+    isPublic: true,
+    title: 'Forgot Password'
+  },
+  {
+    path: '/password-reset/confirm',
+    component: PasswordResetConfirmPage,
+    isPublic: true,
+    title: 'Reset Password'
   },
 
   // Dashboard routes (role-based)
@@ -71,7 +85,7 @@ export const routeConfig = [
   },
   {
     path: '/tenants',
-    component: Tenants,
+    component: SimpleTenants,
     requiredRoles: ['owner', 'admin', 'warden'],
     title: 'Tenants',
     showInNav: true,

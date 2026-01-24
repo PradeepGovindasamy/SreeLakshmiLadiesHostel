@@ -1,9 +1,25 @@
 // src/api.js
 import axios from 'axios';
+import { API_BASE_URL } from './config/api';
 
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000', // Backend URL
+  baseURL: API_BASE_URL, // Dynamically set based on environment
 });
+
+// Flag to prevent multiple refresh attempts
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
 
 // Add Authorization header automatically
 api.interceptors.request.use((config) => {
@@ -15,13 +31,73 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Add response interceptor for better error handling
+// Add response interceptor for token refresh and error handling
 api.interceptors.response.use(
   (response) => {
     console.log('API Response:', response.config.method.toUpperCase(), response.config.url, response.status);
     return response;
   },
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
+
+    // If error is 401 and we haven't tried to refresh yet
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        // If already refreshing, queue this request
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then(token => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return api(originalRequest);
+          })
+          .catch(err => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      const refreshToken = localStorage.getItem('refresh');
+
+      if (!refreshToken) {
+        // No refresh token, redirect to login
+        console.error('No refresh token available, redirecting to login');
+        localStorage.clear();
+        window.location.href = '/login';
+        return Promise.reject(error);
+      }
+
+      try {
+        // Attempt to refresh the token
+        const response = await axios.post(`${API_BASE_URL}/api/token/refresh/`, {
+          refresh: refreshToken
+        });
+
+        const { access } = response.data;
+        localStorage.setItem('access', access);
+
+        // Update authorization header
+        api.defaults.headers.common['Authorization'] = `Bearer ${access}`;
+        originalRequest.headers.Authorization = `Bearer ${access}`;
+
+        // Process queued requests
+        processQueue(null, access);
+        isRefreshing = false;
+
+        // Retry the original request
+        return api(originalRequest);
+      } catch (refreshError) {
+        // Refresh failed, clear storage and redirect to login
+        processQueue(refreshError, null);
+        isRefreshing = false;
+        
+        console.error('Token refresh failed:', refreshError);
+        localStorage.clear();
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
+    }
+
     console.error('API Error:', error.config?.method?.toUpperCase(), error.config?.url, error.response?.status, error.response?.data);
     return Promise.reject(error);
   }
@@ -93,13 +169,38 @@ export const enhancedAPI = {
   },
   
   tenants: {
-    list: () => api.get('/api/v2/tenants/'),
+    // Base methods
+    list: (params = {}) => {
+      const queryString = new URLSearchParams(params).toString();
+      const url = `/api/v2/tenants/${queryString ? '?' + queryString : ''}`;
+      return api.get(url);
+    },
     get: (id) => api.get(`/api/v2/tenants/${id}/`),
     create: (data) => api.post('/api/v2/tenants/', data),
     update: (id, data) => api.put(`/api/v2/tenants/${id}/`, data),
     delete: (id) => api.delete(`/api/v2/tenants/${id}/`),
+    
+    // Helper methods for specific status
+    listActive: (params = {}) => {
+      return api.get('/api/v2/tenants/', { 
+        params: { ...params, status: 'active' } 
+      });
+    },
+    listVacated: (page = 1, pageSize = 25, params = {}) => {
+      return api.get('/api/v2/tenants/', { 
+        params: { ...params, status: 'vacated', page, page_size: pageSize } 
+      });
+    },
+    listPending: (params = {}) => {
+      return api.get('/api/v2/tenants/', { 
+        params: { ...params, status: 'pending' } 
+      });
+    },
+    
+    // Actions
     getPayments: (id) => api.get(`/api/v2/tenants/${id}/payments/`),
     checkout: (id, data) => api.post(`/api/v2/tenants/${id}/checkout/`, data),
+    reactivate: (id) => api.post(`/api/v2/tenants/${id}/reactivate/`),
   },
   
   payments: {
@@ -108,18 +209,6 @@ export const enhancedAPI = {
     create: (data) => api.post('/api/v2/payments/', data),
     getMonthlySummary: (params) => api.get('/api/v2/payments/monthly_summary/', { params }),
   },
-};
-
-// Firebase Phone OTP API
-export const firebaseAPI = {
-  sendOTP: (phoneNumber) => api.post('/api/auth/send-otp/', { phone_number: phoneNumber }),
-  verifyOTP: (phoneNumber, otp, sessionInfo) => api.post('/api/auth/verify-otp/', {
-    phone_number: phoneNumber,
-    otp: otp,
-    session_info: sessionInfo
-  }),
-  firebaseLogin: (idToken) => api.post('/api/auth/firebase-login/', { id_token: idToken }),
-  verifyToken: (idToken) => api.post('/api/auth/verify-token/', { id_token: idToken }),
 };
 
 // Legacy API (for backward compatibility)

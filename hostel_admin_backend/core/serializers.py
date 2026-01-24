@@ -58,6 +58,7 @@ class BranchSerializer(serializers.ModelSerializer):
     
     # Statistics (computed fields)
     total_rooms = serializers.SerializerMethodField()
+    occupied_rooms = serializers.SerializerMethodField()
     occupied_beds = serializers.SerializerMethodField()
     vacant_beds = serializers.SerializerMethodField()
     total_beds = serializers.SerializerMethodField()
@@ -79,17 +80,24 @@ class BranchSerializer(serializers.ModelSerializer):
             'owner', 'owner_name', 'established_date', 'established_year', 
             'license_number', 'notes', 'is_active', 'created_at', 'updated_at',
             # Statistics
-            'total_rooms', 'occupied_beds', 'vacant_beds', 'total_beds', 
+            'total_rooms', 'occupied_rooms', 'occupied_beds', 'vacant_beds', 'total_beds', 
             'bed_occupancy_rate'
         ]
         read_only_fields = [
             'id', 'owner_name', 'property_type_display', 'created_at', 'updated_at',
-            'total_rooms', 'occupied_beds', 'vacant_beds', 'total_beds',
+            'total_rooms', 'occupied_rooms', 'occupied_beds', 'vacant_beds', 'total_beds',
             'bed_occupancy_rate'
         ]
     
     def get_total_rooms(self, obj):
         return obj.rooms.count()
+    
+    def get_occupied_rooms(self, obj):
+        # Count rooms that have at least one active tenant (with joining_date and no vacating_date)
+        return obj.rooms.filter(
+            tenants__joining_date__isnull=False,
+            tenants__vacating_date__isnull=True
+        ).distinct().count()
     
     def get_occupied_beds(self, obj):
         # Count total tenants across all rooms who have joining_date (active tenants)
@@ -166,6 +174,8 @@ class TenantSerializer(serializers.ModelSerializer):
             'stay_type', 'stay_type_display', 'joining_date', 'vacating_date',
             'room', 'room_detail', 'room_display', 'branch_name',
             'id_proof_type', 'id_proof_type_display', 'id_proof_number',
+            'father_name', 'father_aadhar', 'mother_name', 'mother_aadhar',
+            'guardian_name', 'guardian_aadhar',
             'is_active', 'created_at', 'updated_at', 'created_by', 'created_by_name'
         ]
         read_only_fields = [

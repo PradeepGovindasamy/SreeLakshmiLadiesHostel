@@ -208,11 +208,15 @@ RBAC_SETTINGS = {
 
 # Email Configuration for notifications
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'  # Configure based on your email provider
+EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'your-email@gmail.com'  # Set in environment variables
-EMAIL_HOST_PASSWORD = 'your-app-password'  # Set in environment variables
+EMAIL_HOST_USER = 'your-gmail@gmail.com'  # REPLACE WITH YOUR GMAIL ADDRESS
+EMAIL_HOST_PASSWORD = 'rhombvwqywsaynha'  # Gmail App Password provided
+DEFAULT_FROM_EMAIL = 'your-gmail@gmail.com'  # REPLACE WITH YOUR GMAIL ADDRESS
+
+# Frontend URL for password reset links
+FRONTEND_URL = 'http://localhost:3000'
 
 # Notification Settings
 NOTIFICATION_SETTINGS = {

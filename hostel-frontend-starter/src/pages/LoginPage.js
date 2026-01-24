@@ -1,36 +1,31 @@
 import React, { useState } from 'react';
 import {
   Box,
-  Card,
-  CardContent,
   TextField,
   Button,
   Typography,
   Alert,
   CircularProgress,
-  Tabs,
-  Tab,
   InputAdornment,
   Paper,
-  Divider
+  IconButton,
+  Link
 } from '@mui/material';
-import { Person, Lock, Phone } from '@mui/icons-material';
+import { Person, Lock, Visibility, VisibilityOff } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
-import BackendOTPLogin from '../components/BackendOTPLogin';
 
 const LoginPage = () => {
-  const [activeTab, setActiveTab] = useState(0);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  const { login, phoneOTPLogin } = useUser();
+
+  const { login } = useUser();
   const navigate = useNavigate();
 
-  // Handle traditional username/password login
-  const handleTraditionalLogin = async () => {
+  const handleLogin = async () => {
     setError('');
     setLoading(true);
 
@@ -42,35 +37,23 @@ const LoginPage = () => {
 
     try {
       const result = await login(username, password);
-      
+
       if (result.success) {
         navigate('/dashboard');
       } else {
-        setError(result.error);
+        setError(result.error || 'Login failed. Please check your credentials.');
       }
     } catch (error) {
-      setError('Login failed. Please try again.');
+      console.error('Login error:', error);
+      setError('An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle phone OTP login success
-  const handlePhoneOTPSuccess = (authData) => {
-    phoneOTPLogin(authData);
-    navigate('/dashboard');
-  };
-
-  // Handle tab change
-  const handleTabChange = (event, newValue) => {
-    setActiveTab(newValue);
-    setError('');
-  };
-
-  // Handle key press for traditional login
   const handleKeyPress = (event) => {
-    if (event.key === 'Enter') {
-      handleTraditionalLogin();
+    if (event.key === 'Enter' && !loading) {
+      handleLogin();
     }
   };
 
@@ -80,137 +63,91 @@ const LoginPage = () => {
       justifyContent="center"
       alignItems="center"
       minHeight="100vh"
-      sx={{
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        padding: 2
-      }}
+      sx={{ bgcolor: '#f5f5f5' }}
     >
-      <Paper
-        elevation={10}
-        sx={{
-          width: '100%',
-          maxWidth: 450,
-          borderRadius: 3,
-          overflow: 'hidden'
-        }}
-      >
-        {/* Header */}
-        <Box
-          sx={{
-            background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-            color: 'white',
-            p: 3,
-            textAlign: 'center'
+      <Paper elevation={3} sx={{ p: 4, maxWidth: 400, width: '100%' }}>
+        <Typography variant="h4" component="h1" gutterBottom align="center">
+          Sree Lakshmi Ladies Hostel
+        </Typography>
+        <Typography variant="h6" gutterBottom align="center" color="textSecondary">
+          Sign In
+        </Typography>
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+
+        <TextField
+          fullWidth
+          label="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          onKeyPress={handleKeyPress}
+          margin="normal"
+          disabled={loading}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Person />
+              </InputAdornment>
+            ),
           }}
-        >
-          <Typography variant="h4" gutterBottom>
-            Welcome
-          </Typography>
-          <Typography variant="body1">
-            Sree Lakshmi Ladies Hostel
-          </Typography>
-        </Box>
+        />
 
-        {/* Login Tabs */}
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs 
-            value={activeTab} 
-            onChange={handleTabChange} 
-            variant="fullWidth"
-            indicatorColor="primary"
+        <TextField
+          fullWidth
+          label="Password"
+          type={showPassword ? 'text' : 'password'}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyPress={handleKeyPress}
+          margin="normal"
+          disabled={loading}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Lock />
+              </InputAdornment>
+            ),
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => setShowPassword(!showPassword)}
+                  edge="end"
+                  disabled={loading}
+                >
+                  {showPassword ? <VisibilityOff /> : <Visibility />}
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
+        />
+
+        <Box sx={{ mt: 1, mb: 2, textAlign: 'right' }}>
+          <Link
+            component="button"
+            variant="body2"
+            onClick={() => navigate('/forgot-password')}
+            disabled={loading}
+            sx={{ cursor: 'pointer', textDecoration: 'none' }}
           >
-            <Tab label="Username Login" icon={<Person />} />
-            <Tab label="Phone OTP" icon={<Phone />} />
-          </Tabs>
+            Forgot Password?
+          </Link>
         </Box>
 
-        <CardContent sx={{ p: 4 }}>
-          {/* Tab 1: Traditional Username/Password Login */}
-          {activeTab === 0 && (
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Sign In with Username
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Enter your credentials to access your account
-              </Typography>
-
-              {error && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  {error}
-                </Alert>
-              )}
-
-              <TextField
-                fullWidth
-                label="Username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                onKeyPress={handleKeyPress}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Person color="primary" />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{ mb: 2 }}
-              />
-
-              <TextField
-                fullWidth
-                label="Password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyPress={handleKeyPress}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Lock color="primary" />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{ mb: 3 }}
-              />
-
-              <Button
-                fullWidth
-                variant="contained"
-                size="large"
-                onClick={handleTraditionalLogin}
-                disabled={loading || !username || !password}
-                startIcon={loading ? <CircularProgress size={20} /> : <Person />}
-                sx={{ py: 1.5 }}
-              >
-                {loading ? 'Signing In...' : 'Sign In'}
-              </Button>
-
-              <Divider sx={{ my: 3 }}>
-                <Typography variant="body2" color="text.secondary">
-                  or
-                </Typography>
-              </Divider>
-
-              <Button
-                fullWidth
-                variant="outlined"
-                onClick={() => setActiveTab(1)}
-                startIcon={<Phone />}
-                sx={{ py: 1.5 }}
-              >
-                Login with Phone OTP
-              </Button>
-            </Box>
-          )}
-
-          {/* Tab 2: Phone OTP - Backend Only (No Firebase Billing Required) */}
-          {activeTab === 1 && (
-            <Box sx={{ mt: -2, mx: -2, mb: -2 }}>
-              <BackendOTPLogin onLoginSuccess={handlePhoneOTPSuccess} />
-            </Box>
-          )}
-        </CardContent>
+        <Button
+          fullWidth
+          variant="contained"
+          color="primary"
+          size="large"
+          onClick={handleLogin}
+          disabled={loading}
+          sx={{ mt: 2 }}
+        >
+          {loading ? <CircularProgress size={24} /> : 'Sign In'}
+        </Button>
       </Paper>
     </Box>
   );

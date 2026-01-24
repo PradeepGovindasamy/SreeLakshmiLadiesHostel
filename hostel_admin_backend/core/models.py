@@ -105,11 +105,11 @@ class Room(models.Model):
         """Calculate room status based on availability and occupancy"""
         if not self.is_available:
             return 'maintenance'
-        elif self.current_occupancy == 0:
-            return 'available'
-        elif self.is_full:
+        elif self.current_occupancy >= self.sharing_type:
+            # Room is full (occupancy equals or exceeds capacity)
             return 'occupied'
         else:
+            # Room has vacant beds (occupancy is less than capacity)
             return 'available'
     
     def update_availability(self):
@@ -157,6 +157,14 @@ class Tenant(models.Model):
     emergency_contact_name = models.CharField(max_length=100, null=True, blank=True)
     emergency_contact_phone = models.CharField(max_length=15, null=True, blank=True)
     
+    # Family information (stored but not displayed in main views)
+    father_name = models.CharField(max_length=100, blank=True, null=True)
+    father_aadhar = models.CharField(max_length=12, blank=True, null=True)
+    mother_name = models.CharField(max_length=100, blank=True, null=True)
+    mother_aadhar = models.CharField(max_length=12, blank=True, null=True)
+    guardian_name = models.CharField(max_length=100, blank=True, null=True)
+    guardian_aadhar = models.CharField(max_length=12, blank=True, null=True)
+    
     stay_type = models.CharField(max_length=10, choices=STAY_TYPE_CHOICES, null=True, blank=True)
     joining_date = models.DateField(null=True, blank=True)
     vacating_date = models.DateField(null=True, blank=True)
@@ -183,6 +191,30 @@ class Tenant(models.Model):
 
     def __str__(self):
         return self.name
+
+    class Meta:
+        indexes = [
+            # Index for active tenant queries (most frequent)
+            models.Index(
+                fields=['vacating_date', 'joining_date'],
+                name='tenant_active_idx'
+            ),
+            # Index for vacated tenant queries (sorted by vacating_date DESC)
+            models.Index(
+                fields=['-vacating_date'],
+                name='tenant_vacated_idx'
+            ),
+            # Composite index for room-based queries
+            models.Index(
+                fields=['room', 'vacating_date'],
+                name='tenant_room_status_idx'
+            ),
+            # Index for search queries
+            models.Index(
+                fields=['name', 'phone_number'],
+                name='tenant_search_idx'
+            ),
+        ]
 
     def save(self, *args, **kwargs):
         # Validate room capacity before saving

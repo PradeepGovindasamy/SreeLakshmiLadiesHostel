@@ -130,6 +130,8 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
         
         if (isEdit && tenant) {
           console.log('Editing tenant with data:', tenant);
+          console.log('Tenant vacating_date:', tenant.vacating_date);
+          console.log('Tenant joining_date:', tenant.joining_date);
           setFormData({
             name: tenant.name || '',
             email: tenant.email || '',
@@ -156,8 +158,10 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
             guardian_name: tenant.guardian_name || '',
             guardian_contact: tenant.guardian_contact || '',
             guardian_relation: tenant.guardian_relation || '',
-            branch: tenant.room?.branch || '', // Get branch from room relationship
-            room: tenant.room?.id || '', // Get room ID
+            // Backend returns room_detail (full object) and room (ID)
+            // room_detail.branch is the full branch object with id
+            branch: tenant.room_detail?.branch?.id || tenant.room?.branch?.id || tenant.room?.branch || '', 
+            room: tenant.room_detail?.id || tenant.room?.id || tenant.room || '', // Get room ID from room_detail first
             join_date: tenant.joining_date || '', // Map from backend field
             leave_date: tenant.vacating_date || '', // Map from backend field
             rent_amount: tenant.rent_amount || '',
@@ -182,8 +186,11 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
           });
           
           // Fetch rooms for the tenant's branch if available
-          if (tenant.room?.branch) {
-            fetchRooms(tenant.room.branch);
+          // Backend returns room_detail with full branch object
+          const branchId = tenant.room_detail?.branch?.id || tenant.room?.branch?.id || tenant.room?.branch;
+          console.log('Branch ID for fetching rooms:', branchId, 'from tenant.room_detail:', tenant.room_detail);
+          if (branchId) {
+            await fetchRooms(branchId);
           }
         }
       };
@@ -669,6 +676,8 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
         );
 
       case 3:
+        console.log('Step 3 - Room & Stay Details - Current formData:', formData);
+        console.log('Step 3 - join_date:', formData.join_date, 'leave_date:', formData.leave_date);
         return (
           <Grid container spacing={3}>
             <Grid item xs={12} sm={6}>
@@ -704,27 +713,50 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
                 </Select>
               </FormControl>
             </Grid>
+            
+            <Grid item xs={12}>
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="h6" gutterBottom>
+                Stay Period
+              </Typography>
+            </Grid>
+            
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="Join Date *"
+                label="Joining Date *"
                 type="date"
                 value={formData.join_date}
                 onChange={(e) => handleInputChange('join_date', e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 required
+                helperText="Date when tenant joined/will join"
               />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="Leave Date (if known)"
+                label="Vacating/Leave Date"
                 type="date"
-                value={formData.leave_date}
+                value={formData.leave_date || ''}
                 onChange={(e) => handleInputChange('leave_date', e.target.value)}
                 InputLabelProps={{ shrink: true }}
+                helperText={formData.leave_date ? `Tenant vacating on: ${new Date(formData.leave_date).toLocaleDateString()}` : 'Leave empty if tenant is not leaving. Set date to mark tenant as leaving/vacated.'}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: formData.leave_date ? '#fff3cd' : 'inherit',
+                  }
+                }}
               />
             </Grid>
+            
+            <Grid item xs={12}>
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="h6" gutterBottom>
+                Payment Details
+              </Typography>
+            </Grid>
+            
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth

@@ -1,0 +1,683 @@
+[
+{
+  "model": "auth.user",
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$SLZ4x99Z8ckqCA6TiatpOl$ox0mz2ziZE8a83cUWYmBj/wEuKhNSXTz0dOFKLqSkjg=",
+    "last_login": "2025-09-13T15:36:17.618Z",
+    "is_superuser": true,
+    "username": "root",
+    "first_name": "",
+    "last_name": "",
+    "email": "",
+    "is_staff": true,
+    "is_active": true,
+    "date_joined": "2025-08-24T18:34:45Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$OAhL8EDwv60fX6D861bmIC$8o7hoZqG2r535Rd2opYwx2vfni4/8Q1BdrCKwQAYqlA=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "kavitha",
+    "first_name": "",
+    "last_name": "",
+    "email": "",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-25T04:46:41Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$7OIteeDYEfolIdK0b4cJtC$7qOxxUhHUekhu06v2X8bv8nuUohD6gCof0peV9jD7m0=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "krithik",
+    "first_name": "k",
+    "last_name": "",
+    "email": "krith@test.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-25T10:38:09Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "fields": {
+    "password": "!FvEH9N8YgFYk58oHPYNmt63c69u5m1L7p5hYIpeY",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "user_919962820828",
+    "first_name": "User",
+    "last_name": "",
+    "email": "user_919962820828@hostel.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-25T14:22:59.721Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$6LLLzsZf3PrSEVcYsnznm6$f5NKFmFH5PEW2AGCTGxIudm8J+Ji832mIOrIbnSn+m8=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "Sangeetha",
+    "first_name": "Sangeetha",
+    "last_name": "G",
+    "email": "Sangeetha@gmail.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-25T15:52:54.254Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$vheCgZdnHvjUcuvDggiT0y$jFb2ENKAPuQSrItcG+uXY4e5a7X3QGY6bIuOr/Nyjig=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "pradeep",
+    "first_name": "Sri",
+    "last_name": "street",
+    "email": "pradeepgovindaswamy90@gmail.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-10-05T03:27:32.331Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "sessions.session",
+  "pk": "11ewjjbvjuttjleukdb8uet7rfaf5tgr",
+  "fields": {
+    "session_data": ".eJxVjMsOwiAQRf-FtSE8KjAu3fcbmoEZpGogKe3K-O_apAvd3nPOfYkJt7VMW-dlmklchBan3y1ienDdAd2x3ppMra7LHOWuyIN2OTbi5_Vw_w4K9vKtAXLIVg-E2lrOmDUCUUQk64JjayADqWQosQLDEEMcICvvvD5b8CzeHwkuOHw:1uqaSb:VE1cVK_R0PtszicoId80v1gYs7_f99YL4sP54d2IesQ",
+    "expire_date": "2025-08-25T17:54:21.166Z"
+  }
+},
+{
+  "model": "sessions.session",
+  "pk": "bayndm1h5g1senf0tm4fr7d27zuwyg5r",
+  "fields": {
+    "session_data": ".eJxVjMsOwiAQRf-FtSE8KjAu3fcbmoEZpGogKe3K-O_apAvd3nPOfYkJt7VMW-dlmklchBan3y1ienDdAd2x3ppMra7LHOWuyIN2OTbi5_Vw_w4K9vKtAXLIVg-E2lrOmDUCUUQk64JjayADqWQosQLDEEMcICvvvD5b8CzeHwkuOHw:1urIdb:fXl0-wBrl0Dh3zUySh-1n4CBfndXXSQFiyBVjdSHPnk",
+    "expire_date": "2025-08-27T17:04:39.146Z"
+  }
+},
+{
+  "model": "sessions.session",
+  "pk": "ijlhn4ycpfib9aa7xjdxetp0785uk0qw",
+  "fields": {
+    "session_data": ".eJxVjMsOwiAQRf-FtSE8KjAu3fcbmoEZpGogKe3K-O_apAvd3nPOfYkJt7VMW-dlmklchBan3y1ienDdAd2x3ppMra7LHOWuyIN2OTbi5_Vw_w4K9vKtAXLIVg-E2lrOmDUCUUQk64JjayADqWQosQLDEEMcICvvvD5b8CzeHwkuOHw:1uqY0d:SZEkTUpEOyVQbrkdrFAi1fKJSYe1waDtdwjqoPRFuQw",
+    "expire_date": "2025-08-25T15:17:19.596Z"
+  }
+},
+{
+  "model": "sessions.session",
+  "pk": "m7fzqwnvqu4nif0xd331sr5r2w3mk5du",
+  "fields": {
+    "session_data": ".eJxVjMsOwiAQRf-FtSE8KjAu3fcbmoEZpGogKe3K-O_apAvd3nPOfYkJt7VMW-dlmklchBan3y1ienDdAd2x3ppMra7LHOWuyIN2OTbi5_Vw_w4K9vKtAXLIVg-E2lrOmDUCUUQk64JjayADqWQosQLDEEMcICvvvD5b8CzeHwkuOHw:1uxSIT:9kov6QGaaGQy7jWRi7aJnwM6KSx0cTs3KSFD05uwhR0",
+    "expire_date": "2025-09-13T16:36:17.630Z"
+  }
+},
+{
+  "model": "core.branch",
+  "pk": 1,
+  "fields": {
+    "name": "Sri Lakshmi Hostel - Vaniyar street",
+    "address": "No 10 vaniyar street,\r\nchoolaimedu,\r\nchennai 94.",
+    "city": "",
+    "state": "",
+    "pincode": "",
+    "description": "",
+    "contact_phone": "08940896777",
+    "contact_email": "pradeepgovindaswamy90@gmail.com",
+    "emergency_contact": "",
+    "property_type": "ladies_hostel",
+    "total_floors": 1,
+    "num_rooms": 9,
+    "num_bathrooms": 9,
+    "has_parking": false,
+    "has_wifi": true,
+    "has_ac": true,
+    "has_laundry": false,
+    "has_security": true,
+    "has_mess": true,
+    "amenities": "",
+    "rules_and_regulations": "",
+    "nearby_facilities": "",
+    "established_date": "2025-08-01",
+    "established_year": 2025,
+    "license_number": "",
+    "notes": "",
+    "is_active": true,
+    "created_at": null,
+    "updated_at": "2025-08-25T17:02:30.800Z",
+    "owner": [
+      "kavitha"
+    ]
+  }
+},
+{
+  "model": "core.branch",
+  "pk": 2,
+  "fields": {
+    "name": "Sri Lakshmi Hostel - Vellala Street",
+    "address": "No 10 vellala street,\r\nchoolaimedu,\r\nchennai 94.",
+    "city": null,
+    "state": null,
+    "pincode": null,
+    "description": "",
+    "contact_phone": "08940896777",
+    "contact_email": "pradeepgovindaswamy90@gmail.com",
+    "emergency_contact": "",
+    "property_type": "ladies_hostel",
+    "total_floors": 1,
+    "num_rooms": 8,
+    "num_bathrooms": 8,
+    "has_parking": false,
+    "has_wifi": false,
+    "has_ac": false,
+    "has_laundry": false,
+    "has_security": false,
+    "has_mess": false,
+    "amenities": "",
+    "rules_and_regulations": "",
+    "nearby_facilities": "",
+    "established_date": "2025-08-01",
+    "established_year": null,
+    "license_number": "",
+    "notes": "",
+    "is_active": true,
+    "created_at": null,
+    "updated_at": "2025-08-25T16:56:01.458Z",
+    "owner": [
+      "kavitha"
+    ]
+  }
+},
+{
+  "model": "core.room",
+  "pk": 1,
+  "fields": {
+    "branch": 1,
+    "room_name": "G1",
+    "sharing_type": 4,
+    "attached_bath": true,
+    "ac_room": true,
+    "rent": "5000.00",
+    "floor_number": 1,
+    "room_size_sqft": 100,
+    "is_available": true,
+    "created_at": null,
+    "updated_at": "2025-09-01T15:52:14.846Z"
+  }
+},
+{
+  "model": "core.room",
+  "pk": 2,
+  "fields": {
+    "branch": 1,
+    "room_name": "G2",
+    "sharing_type": 4,
+    "attached_bath": true,
+    "ac_room": true,
+    "rent": "5000.00",
+    "floor_number": 1,
+    "room_size_sqft": 100,
+    "is_available": true,
+    "created_at": null,
+    "updated_at": "2025-09-01T16:18:32.442Z"
+  }
+},
+{
+  "model": "core.room",
+  "pk": 3,
+  "fields": {
+    "branch": 2,
+    "room_name": "G1",
+    "sharing_type": 3,
+    "attached_bath": true,
+    "ac_room": false,
+    "rent": "6500.00",
+    "floor_number": 1,
+    "room_size_sqft": 300,
+    "is_available": true,
+    "created_at": null,
+    "updated_at": "2026-01-04T02:34:54.450Z"
+  }
+},
+{
+  "model": "core.tenant",
+  "pk": 1,
+  "fields": {
+    "user": null,
+    "name": "test",
+    "address": "qq",
+    "phone_number": "999999999",
+    "email": "test@gmail.com",
+    "emergency_contact_name": "jokk",
+    "emergency_contact_phone": "nkjlk",
+    "father_name": "",
+    "father_aadhar": "",
+    "mother_name": "",
+    "mother_aadhar": "",
+    "guardian_name": "",
+    "guardian_aadhar": "",
+    "stay_type": "monthly",
+    "joining_date": "2025-08-18",
+    "vacating_date": "2026-01-15",
+    "room": 1,
+    "id_proof_type": "aadhar",
+    "id_proof_number": "",
+    "created_by": [
+      "root"
+    ],
+    "created_at": null,
+    "updated_at": "2026-01-18T04:55:52.299Z"
+  }
+},
+{
+  "model": "core.tenant",
+  "pk": 2,
+  "fields": {
+    "user": null,
+    "name": "Pradeep G",
+    "address": "",
+    "phone_number": "09962820828",
+    "email": "",
+    "emergency_contact_name": "",
+    "emergency_contact_phone": "",
+    "father_name": "",
+    "father_aadhar": "143435",
+    "mother_name": "",
+    "mother_aadhar": "",
+    "guardian_name": "",
+    "guardian_aadhar": "",
+    "stay_type": "monthly",
+    "joining_date": "2026-01-02",
+    "vacating_date": null,
+    "room": 3,
+    "id_proof_type": "",
+    "id_proof_number": "",
+    "created_by": [
+      "pradeep"
+    ],
+    "created_at": null,
+    "updated_at": "2026-01-18T18:02:40.451Z"
+  }
+},
+{
+  "model": "core.tenant",
+  "pk": 3,
+  "fields": {
+    "user": null,
+    "name": "Test2",
+    "address": "no 406D malar colony,19th main road,anna nagar west",
+    "phone_number": "09962820828",
+    "email": "",
+    "emergency_contact_name": "",
+    "emergency_contact_phone": "",
+    "father_name": "",
+    "father_aadhar": "",
+    "mother_name": "",
+    "mother_aadhar": "",
+    "guardian_name": "",
+    "guardian_aadhar": "",
+    "stay_type": "monthly",
+    "joining_date": "2026-01-04",
+    "vacating_date": null,
+    "room": 3,
+    "id_proof_type": "",
+    "id_proof_number": "",
+    "created_by": [
+      "pradeep"
+    ],
+    "created_at": null,
+    "updated_at": "2026-01-04T07:56:36.844Z"
+  }
+},
+{
+  "model": "core.tenant",
+  "pk": 4,
+  "fields": {
+    "user": null,
+    "name": "Test3",
+    "address": "no 406D malar colony,19th main road,anna nagar west",
+    "phone_number": "09962820828",
+    "email": "",
+    "emergency_contact_name": "",
+    "emergency_contact_phone": "",
+    "father_name": "",
+    "father_aadhar": "",
+    "mother_name": "",
+    "mother_aadhar": "",
+    "guardian_name": "",
+    "guardian_aadhar": "",
+    "stay_type": "monthly",
+    "joining_date": "2026-01-04",
+    "vacating_date": null,
+    "room": 3,
+    "id_proof_type": "",
+    "id_proof_number": "",
+    "created_by": [
+      "pradeep"
+    ],
+    "created_at": null,
+    "updated_at": "2026-01-04T07:56:56.460Z"
+  }
+},
+{
+  "model": "core.roomoccupancy",
+  "pk": 2,
+  "fields": {
+    "room": 3,
+    "tenant": 2,
+    "start_date": "2026-01-02",
+    "end_date": null,
+    "monthly_rent_agreed": null,
+    "security_deposit": null,
+    "created_at": null,
+    "created_by": null
+  }
+},
+{
+  "model": "core.roomoccupancy",
+  "pk": 3,
+  "fields": {
+    "room": 3,
+    "tenant": 3,
+    "start_date": "2026-01-04",
+    "end_date": null,
+    "monthly_rent_agreed": null,
+    "security_deposit": null,
+    "created_at": null,
+    "created_by": null
+  }
+},
+{
+  "model": "core.roomoccupancy",
+  "pk": 4,
+  "fields": {
+    "room": 3,
+    "tenant": 4,
+    "start_date": "2026-01-04",
+    "end_date": null,
+    "monthly_rent_agreed": null,
+    "security_deposit": null,
+    "created_at": null,
+    "created_by": null
+  }
+},
+{
+  "model": "core.userprofile",
+  "pk": 1,
+  "fields": {
+    "user": [
+      "root"
+    ],
+    "role": "admin",
+    "phone_number": "9962820828",
+    "firebase_uid": null,
+    "phone_verified": false,
+    "business_name": null,
+    "business_license": null,
+    "branch": null,
+    "is_active": true,
+    "created_at": null,
+    "updated_at": "2025-08-25T14:08:03.071Z"
+  }
+},
+{
+  "model": "core.userprofile",
+  "pk": 2,
+  "fields": {
+    "user": [
+      "kavitha"
+    ],
+    "role": "owner",
+    "phone_number": "9962820828",
+    "firebase_uid": null,
+    "phone_verified": false,
+    "business_name": null,
+    "business_license": null,
+    "branch": null,
+    "is_active": true,
+    "created_at": null,
+    "updated_at": "2025-08-25T14:07:16.167Z"
+  }
+},
+{
+  "model": "core.userprofile",
+  "pk": 3,
+  "fields": {
+    "user": [
+      "krithik"
+    ],
+    "role": "owner",
+    "phone_number": "9962820828",
+    "firebase_uid": null,
+    "phone_verified": false,
+    "business_name": null,
+    "business_license": null,
+    "branch": null,
+    "is_active": true,
+    "created_at": null,
+    "updated_at": "2025-08-25T14:07:50.362Z"
+  }
+},
+{
+  "model": "core.userprofile",
+  "pk": 4,
+  "fields": {
+    "user": [
+      "user_919962820828"
+    ],
+    "role": "tenant",
+    "phone_number": "+919962820828",
+    "firebase_uid": "firebase_uid_919962820828",
+    "phone_verified": true,
+    "business_name": null,
+    "business_license": null,
+    "branch": null,
+    "is_active": true,
+    "created_at": null,
+    "updated_at": "2026-01-17T04:19:25.765Z"
+  }
+},
+{
+  "model": "core.userprofile",
+  "pk": 5,
+  "fields": {
+    "user": [
+      "Sangeetha"
+    ],
+    "role": "warden",
+    "phone_number": "",
+    "firebase_uid": null,
+    "phone_verified": false,
+    "business_name": "",
+    "business_license": "",
+    "branch": null,
+    "is_active": true,
+    "created_at": null,
+    "updated_at": "2025-08-25T15:52:54.698Z"
+  }
+},
+{
+  "model": "core.userprofile",
+  "pk": 6,
+  "fields": {
+    "user": [
+      "pradeep"
+    ],
+    "role": "admin",
+    "phone_number": "",
+    "firebase_uid": null,
+    "phone_verified": false,
+    "business_name": "",
+    "business_license": "",
+    "branch": null,
+    "is_active": true,
+    "created_at": null,
+    "updated_at": "2025-10-05T03:27:21.160Z"
+  }
+},
+{
+  "model": "admin.logentry",
+  "pk": 1,
+  "fields": {
+    "action_time": "2025-08-24T18:35:53.738Z",
+    "user": [
+      "root"
+    ],
+    "content_type": [
+      "auth",
+      "user"
+    ],
+    "object_id": "1",
+    "object_repr": "root",
+    "action_flag": 2,
+    "change_message": "[{\"added\": {\"name\": \"user profile\", \"object\": \"root - Admin\"}}]"
+  }
+},
+{
+  "model": "admin.logentry",
+  "pk": 2,
+  "fields": {
+    "action_time": "2025-08-25T04:46:41.687Z",
+    "user": [
+      "root"
+    ],
+    "content_type": [
+      "auth",
+      "user"
+    ],
+    "object_id": "2",
+    "object_repr": "kavitha",
+    "action_flag": 1,
+    "change_message": "[{\"added\": {}}, {\"added\": {\"name\": \"user profile\", \"object\": \"kavitha - Property Owner\"}}]"
+  }
+},
+{
+  "model": "admin.logentry",
+  "pk": 3,
+  "fields": {
+    "action_time": "2025-08-25T04:49:03.448Z",
+    "user": [
+      "root"
+    ],
+    "content_type": [
+      "core",
+      "branch"
+    ],
+    "object_id": "1",
+    "object_repr": "Sri Lakshmi Hostel - Vaniyar street",
+    "action_flag": 1,
+    "change_message": "[{\"added\": {}}]"
+  }
+},
+{
+  "model": "admin.logentry",
+  "pk": 4,
+  "fields": {
+    "action_time": "2025-08-25T05:07:51.012Z",
+    "user": [
+      "root"
+    ],
+    "content_type": [
+      "core",
+      "branch"
+    ],
+    "object_id": "1",
+    "object_repr": "Sri Lakshmi Hostel - Vaniyar street",
+    "action_flag": 2,
+    "change_message": "[{\"changed\": {\"fields\": [\"Owner\"]}}]"
+  }
+},
+{
+  "model": "admin.logentry",
+  "pk": 5,
+  "fields": {
+    "action_time": "2025-08-25T14:07:16.169Z",
+    "user": [
+      "root"
+    ],
+    "content_type": [
+      "auth",
+      "user"
+    ],
+    "object_id": "2",
+    "object_repr": "kavitha",
+    "action_flag": 2,
+    "change_message": "[{\"changed\": {\"name\": \"user profile\", \"object\": \"kavitha - Property Owner\", \"fields\": [\"Phone number\"]}}]"
+  }
+},
+{
+  "model": "admin.logentry",
+  "pk": 6,
+  "fields": {
+    "action_time": "2025-08-25T14:07:50.363Z",
+    "user": [
+      "root"
+    ],
+    "content_type": [
+      "auth",
+      "user"
+    ],
+    "object_id": "3",
+    "object_repr": "krithik",
+    "action_flag": 2,
+    "change_message": "[{\"changed\": {\"fields\": [\"Email address\"]}}, {\"changed\": {\"name\": \"user profile\", \"object\": \"krithik - Property Owner\", \"fields\": [\"Phone number\"]}}]"
+  }
+},
+{
+  "model": "admin.logentry",
+  "pk": 7,
+  "fields": {
+    "action_time": "2025-08-25T14:08:03.073Z",
+    "user": [
+      "root"
+    ],
+    "content_type": [
+      "auth",
+      "user"
+    ],
+    "object_id": "1",
+    "object_repr": "root",
+    "action_flag": 2,
+    "change_message": "[{\"changed\": {\"name\": \"user profile\", \"object\": \"root - Admin\", \"fields\": [\"Phone number\"]}}]"
+  }
+},
+{
+  "model": "admin.logentry",
+  "pk": 8,
+  "fields": {
+    "action_time": "2025-08-25T16:56:01.461Z",
+    "user": [
+      "root"
+    ],
+    "content_type": [
+      "core",
+      "branch"
+    ],
+    "object_id": "2",
+    "object_repr": "Sri Lakshmi Hostel - Vellala Street",
+    "action_flag": 1,
+    "change_message": "[{\"added\": {}}]"
+  }
+}
+]

@@ -46,7 +46,9 @@ import {
   Email as EmailIcon,
   CalendarToday as CalendarIcon,
   CheckCircle as CheckCircleIcon,
-  Warning as WarningIcon
+  Warning as WarningIcon,
+  ExitToApp as ExitToAppIcon,
+  Restore as RestoreIcon
 } from '@mui/icons-material';
 
 function Tenants() {
@@ -65,6 +67,9 @@ function Tenants() {
   const [alert, setAlert] = useState({ open: false, message: '', severity: 'success' });
   const [tenantFormOpen, setTenantFormOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState(null);
+  const [checkoutDialog, setCheckoutDialog] = useState(false);
+  const [checkoutTenant, setCheckoutTenant] = useState(null);
+  const [vacatingDate, setVacatingDate] = useState('');
 
   const { getUserRole, hasAnyRole } = useUser();
   const userRole = getUserRole();
@@ -170,20 +175,77 @@ function Tenants() {
     }
   };
 
-  const handleEdit = (tenant) => {
-    setEditingTenant(tenant);
-    setTenantFormOpen(true);
+  const handleEdit = async (tenant) => {
+    try {
+      // Fetch full tenant details to ensure we have all fields including vacating_date
+      const response = await enhancedAPI.tenants.get(tenant.id);
+      console.log('Full tenant data for editing:', response.data);
+      
+      // Compute status for the tenant
+      const fullTenant = {
+        ...response.data,
+        status: computeTenantStatus(response.data)
+      };
+      
+      setEditingTenant(fullTenant);
+      setTenantFormOpen(true);
+    } catch (error) {
+      console.error('Error fetching tenant details for edit:', error);
+      setAlert({ open: true, message: 'Failed to load tenant details for editing.', severity: 'error' });
+    }
   };
 
   const handleDelete = async (tenant) => {
-    if (window.confirm(`Are you sure you want to delete tenant "${tenant.name}"?`)) {
+    if (window.confirm(`Are you sure you want to permanently delete tenant "${tenant.name}"? This action cannot be undone. Consider using "Checkout" instead to preserve the tenant's history.`)) {
       try {
         await enhancedAPI.tenants.delete(tenant.id);
         setAlert({ open: true, message: 'Tenant deleted successfully.', severity: 'success' });
         await fetchTenants(); // Refresh list
       } catch (error) {
         console.error('Error deleting tenant:', error);
-        setAlert({ open: true, message: 'Failed to delete tenant.', severity: 'error' });
+        const errorMsg = error.response?.data?.error || error.response?.data?.detail || 'Failed to delete tenant.';
+        setAlert({ open: true, message: errorMsg, severity: 'error' });
+      }
+    }
+  };
+
+  const handleCheckout = (tenant) => {
+    setCheckoutTenant(tenant);
+    // Set default vacating date to today
+    const today = new Date().toISOString().split('T')[0];
+    setVacatingDate(today);
+    setCheckoutDialog(true);
+  };
+
+  const handleCheckoutConfirm = async () => {
+    if (!checkoutTenant || !vacatingDate) {
+      setAlert({ open: true, message: 'Please select a vacating date.', severity: 'error' });
+      return;
+    }
+
+    try {
+      await enhancedAPI.tenants.checkout(checkoutTenant.id, { vacating_date: vacatingDate });
+      setAlert({ open: true, message: 'Tenant checked out successfully!', severity: 'success' });
+      setCheckoutDialog(false);
+      setCheckoutTenant(null);
+      setVacatingDate('');
+      await fetchTenants(); // Refresh list
+    } catch (error) {
+      console.error('Error checking out tenant:', error);
+      setAlert({ open: true, message: 'Failed to checkout tenant.', severity: 'error' });
+    }
+  };
+
+  const handleReactivate = async (tenant) => {
+    if (window.confirm(`Are you sure you want to reactivate tenant "${tenant.name}"? This will clear their vacating date and mark them as active again.`)) {
+      try {
+        await enhancedAPI.tenants.reactivate(tenant.id);
+        setAlert({ open: true, message: 'Tenant reactivated successfully!', severity: 'success' });
+        await fetchTenants(); // Refresh list
+      } catch (error) {
+        console.error('Error reactivating tenant:', error);
+        const errorMsg = error.response?.data?.error || 'Failed to reactivate tenant.';
+        setAlert({ open: true, message: errorMsg, severity: 'error' });
       }
     }
   };
@@ -237,7 +299,7 @@ function Tenants() {
     const matchesSearch = !searchTerm || 
       tenant.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tenant.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tenant.phone?.includes(searchTerm);
+      tenant.phone_number?.includes(searchTerm);
     
     const matchesStatus = selectedStatus === 'all' || tenant.status === selectedStatus;
     
@@ -446,10 +508,10 @@ function Tenants() {
                             <Typography variant="body2">{tenant.email}</Typography>
                           </Box>
                         )}
-                        {tenant.phone && (
+                        {tenant.phone_number && (
                           <Box display="flex" alignItems="center">
                             <PhoneIcon fontSize="small" sx={{ mr: 1 }} />
-                            <Typography variant="body2">{tenant.phone}</Typography>
+                            <Typography variant="body2">{tenant.phone_number}</Typography>
                           </Box>
                         )}
                       </Box>
@@ -460,23 +522,23 @@ function Tenants() {
                           {tenant.branch_name || 'N/A'}
                         </Typography>
                         <Typography variant="caption" color="textSecondary">
-                          Room: {tenant.room_number || 'Not Assigned'}
+                          {tenant.room_display || 'Room: Not Assigned'}
                         </Typography>
                       </Box>
                     </TableCell>
                     <TableCell>
                       <Box>
-                        {tenant.join_date && (
+                        {tenant.joining_date && (
                           <Box display="flex" alignItems="center" mb={0.5}>
                             <CalendarIcon fontSize="small" sx={{ mr: 1 }} />
                             <Typography variant="body2">
-                              From: {new Date(tenant.join_date).toLocaleDateString()}
+                              From: {new Date(tenant.joining_date).toLocaleDateString()}
                             </Typography>
                           </Box>
                         )}
-                        {tenant.leave_date && (
+                        {tenant.vacating_date && (
                           <Typography variant="caption" color="textSecondary">
-                            To: {new Date(tenant.leave_date).toLocaleDateString()}
+                            To: {new Date(tenant.vacating_date).toLocaleDateString()}
                           </Typography>
                         )}
                       </Box>
@@ -520,8 +582,30 @@ function Tenants() {
                           </IconButton>
                         </Tooltip>
                       )}
+                      {canEdit && tenant.status === 'active' && (
+                        <Tooltip title="Checkout/Vacate">
+                          <IconButton 
+                            color="warning" 
+                            size="small"
+                            onClick={() => handleCheckout(tenant)}
+                          >
+                            <ExitToAppIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {canEdit && tenant.status === 'inactive' && (
+                        <Tooltip title="Reactivate">
+                          <IconButton 
+                            color="success" 
+                            size="small"
+                            onClick={() => handleReactivate(tenant)}
+                          >
+                            <RestoreIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       {canDelete && (
-                        <Tooltip title="Delete">
+                        <Tooltip title="Permanent Delete (Not Recommended)">
                           <IconButton 
                             color="error" 
                             size="small"
@@ -568,7 +652,7 @@ function Tenants() {
                 <Typography variant="h6" gutterBottom>Personal Information</Typography>
                 <Typography><strong>Name:</strong> {selectedTenant.name}</Typography>
                 <Typography><strong>Email:</strong> {selectedTenant.email || 'N/A'}</Typography>
-                <Typography><strong>Phone:</strong> {selectedTenant.phone || 'N/A'}</Typography>
+                <Typography><strong>Phone:</strong> {selectedTenant.phone_number || 'N/A'}</Typography>
                 <Typography><strong>Address:</strong> {selectedTenant.address || 'N/A'}</Typography>
                 {selectedTenant.guardian_name && (
                   <Typography><strong>Guardian:</strong> {selectedTenant.guardian_name}</Typography>
@@ -581,13 +665,13 @@ function Tenants() {
               <Grid item xs={12} md={6}>
                 <Typography variant="h6" gutterBottom>Accommodation Details</Typography>
                 <Typography><strong>Property:</strong> {selectedTenant.branch_name || 'N/A'}</Typography>
-                <Typography><strong>Room:</strong> {selectedTenant.room_number || 'Not Assigned'}</Typography>
+                <Typography><strong>Room:</strong> {selectedTenant.room_display || 'Not Assigned'}</Typography>
                 <Typography><strong>Join Date:</strong> 
-                  {selectedTenant.join_date ? new Date(selectedTenant.join_date).toLocaleDateString() : 'N/A'}
+                  {selectedTenant.joining_date ? new Date(selectedTenant.joining_date).toLocaleDateString() : 'N/A'}
                 </Typography>
-                {selectedTenant.leave_date && (
-                  <Typography><strong>Leave Date:</strong> 
-                    {new Date(selectedTenant.leave_date).toLocaleDateString()}
+                {selectedTenant.vacating_date && (
+                  <Typography><strong>Vacating Date:</strong> 
+                    {new Date(selectedTenant.vacating_date).toLocaleDateString()}
                   </Typography>
                 )}
                 <Typography><strong>Status:</strong> 
@@ -623,6 +707,51 @@ function Tenants() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setTenantDetailsDialog(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Checkout/Vacate Tenant Dialog */}
+      <Dialog 
+        open={checkoutDialog} 
+        onClose={() => setCheckoutDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Checkout Tenant - {checkoutTenant?.name}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            <Typography variant="body1" gutterBottom>
+              Please select the vacating date for this tenant. This will mark them as inactive but preserve their history.
+            </Typography>
+            <TextField
+              label="Vacating Date"
+              type="date"
+              fullWidth
+              value={vacatingDate}
+              onChange={(e) => setVacatingDate(e.target.value)}
+              InputLabelProps={{
+                shrink: true,
+              }}
+              sx={{ mt: 2 }}
+              helperText="The date when the tenant will vacate the room"
+            />
+            <Alert severity="info" sx={{ mt: 2 }}>
+              Note: The tenant's record will be preserved for history. You can reactivate them later if needed.
+            </Alert>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCheckoutDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={handleCheckoutConfirm} 
+            variant="contained" 
+            color="warning"
+            startIcon={<ExitToAppIcon />}
+          >
+            Checkout Tenant
+          </Button>
         </DialogActions>
       </Dialog>
 

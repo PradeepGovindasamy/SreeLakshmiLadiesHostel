@@ -457,8 +457,6 @@ function Rooms() {
                 <MenuItem value="all">All Statuses</MenuItem>
                 <MenuItem value="available">Available</MenuItem>
                 <MenuItem value="occupied">Occupied</MenuItem>
-                <MenuItem value="maintenance">Maintenance</MenuItem>
-                <MenuItem value="reserved">Reserved</MenuItem>
               </Select>
             </FormControl>
           </Grid>

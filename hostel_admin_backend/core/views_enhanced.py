@@ -2,7 +2,7 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Q
+from django.db.models import Q, Count, F
 from .models import Branch, Room, Tenant, RoomOccupancy, RentPayment, UserProfile
 from .serializers import (
     BranchSerializer, RoomSerializer, TenantSerializer,
@@ -198,13 +198,14 @@ class EnhancedRoomViewSet(viewsets.ModelViewSet):
         
         user_role = user.profile.role
         
+        # Base queryset based on role
         # Owners and admins see all rooms
         if user_role in ['owner', 'admin']:
-            return Room.objects.all().select_related('branch')
+            queryset = Room.objects.all().select_related('branch')
         
         # Owners see rooms in their branches
         elif user_role == 'owner':
-            return Room.objects.filter(branch__owner=user).select_related('branch')
+            queryset = Room.objects.filter(branch__owner=user).select_related('branch')
         
         # Wardens see rooms in assigned branches
         elif user_role == 'warden':
@@ -212,16 +213,47 @@ class EnhancedRoomViewSet(viewsets.ModelViewSet):
             assigned_branches = WardenAssignment.objects.filter(
                 warden=user, is_active=True
             ).values_list('branch', flat=True)
-            return Room.objects.filter(branch__in=assigned_branches).select_related('branch')
+            queryset = Room.objects.filter(branch__in=assigned_branches).select_related('branch')
         
         # Tenants see available rooms in active branches
         elif user_role == 'tenant':
-            return Room.objects.filter(
+            queryset = Room.objects.filter(
                 branch__is_active=True,
                 is_available=True
             ).select_related('branch')
+        else:
+            return Room.objects.none()
         
-        return Room.objects.none()
+        # Apply query parameter filters
+        branch_id = self.request.query_params.get('branch', None)
+        if branch_id and branch_id != 'all':
+            queryset = queryset.filter(branch_id=branch_id)
+        
+        status = self.request.query_params.get('status', None)
+        if status and status != 'all':
+            if status == 'available':
+                # Available: is_available=True AND has vacant beds
+                queryset = queryset.filter(
+                    is_available=True
+                ).annotate(
+                    occupancy_count=Count('tenants', filter=Q(tenants__joining_date__isnull=False, tenants__vacating_date__isnull=True))
+                ).filter(
+                    Q(occupancy_count__lt=F('sharing_type')) | Q(sharing_type__isnull=True)
+                )
+            elif status == 'occupied':
+                # Occupied: is_available=True AND room is full
+                queryset = queryset.filter(
+                    is_available=True
+                ).annotate(
+                    occupancy_count=Count('tenants', filter=Q(tenants__joining_date__isnull=False, tenants__vacating_date__isnull=True))
+                ).filter(
+                    occupancy_count__gte=F('sharing_type'),
+                    sharing_type__isnull=False
+                )
+            elif status == 'maintenance':
+                queryset = queryset.filter(is_available=False)
+        
+        return queryset
     
     @action(detail=True, methods=['get'])
     def tenants(self, request, pk=None):
@@ -340,6 +372,36 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
             'message': 'Tenant checked out successfully',
             'tenant': serializer.data
         })
+    
+    @action(detail=True, methods=['post'])
+    def reactivate(self, request, pk=None):
+        """Reactivate a tenant (clear vacating date)"""
+        tenant = self.get_object()
+        
+        if not tenant.vacating_date:
+            return Response(
+                {'error': 'Tenant is already active'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        tenant.vacating_date = None
+        tenant.save()
+        
+        serializer = self.get_serializer(tenant)
+        return Response({
+            'message': 'Tenant reactivated successfully',
+            'tenant': serializer.data
+        })
+    
+    def destroy(self, request, *args, **kwargs):
+        """Override destroy to prevent hard delete - only soft delete allowed"""
+        return Response(
+            {
+                'error': 'Hard delete is not allowed. Use checkout action to mark tenant as vacated.',
+                'detail': 'To vacate a tenant, use POST /api/v2/tenants/{id}/checkout/ with vacating_date'
+            },
+            status=status.HTTP_403_FORBIDDEN
+        )
 
 
 class EnhancedRoomOccupancyViewSet(viewsets.ModelViewSet):
