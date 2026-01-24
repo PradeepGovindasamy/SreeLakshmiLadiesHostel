@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import { AppBar, Toolbar, Typography, Button, Drawer, List, ListItem, ListItemText, Box, Menu, MenuItem } from '@mui/material';
 import { Dashboard as DashboardIcon, ExitToApp, Person } from '@mui/icons-material';
 import { UserProvider, useUser } from './contexts/UserContext';
@@ -12,6 +12,7 @@ const drawerWidth = 240;
 function AppWrapper() {
   const { user, isAuthenticated, logout, getUserRole, getUserName } = useUser();
   const navigate = useNavigate();
+  const location = useLocation();
   const [anchorEl, setAnchorEl] = React.useState(null);
 
   const handleLogout = () => {
@@ -32,9 +33,18 @@ function AppWrapper() {
   // Get navigation items based on user role
   const navigationItems = getNavigationItems(userRole);
 
+  // Check if current path is a public page
+  const isPublicPage = location.pathname === '/' || 
+                       location.pathname === '/login' ||
+                       location.pathname === '/forgot-password' ||
+                       location.pathname === '/password-reset/confirm';
+
+  // Show management layout only for authenticated users on non-public pages
+  const showManagementLayout = isAuthenticated() && !isPublicPage;
+
   return (
     <Box sx={{ display: 'flex' }}>
-      {isAuthenticated() && (
+      {showManagementLayout && (
         <>
           {/* Top AppBar */}
           <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
@@ -103,12 +113,12 @@ function AppWrapper() {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
-          marginLeft: isAuthenticated() ? 0 : 0,
-          width: isAuthenticated() ? `calc(100% - ${drawerWidth}px)` : '100%'
+          p: showManagementLayout ? 3 : 0,
+          marginLeft: showManagementLayout ? 0 : 0,
+          width: showManagementLayout ? `calc(100% - ${drawerWidth}px)` : '100%'
         }}
       >
-        {isAuthenticated() && <Toolbar />}
+        {showManagementLayout && <Toolbar />}
         
         <Routes>
           {/* Public Routes */}
@@ -117,7 +127,7 @@ function AppWrapper() {
               key={route.path}
               path={route.path} 
               element={
-                isAuthenticated() ? <ConditionalDashboard /> : <route.component />
+                isAuthenticated() && route.path !== '/' ? <ConditionalDashboard /> : <route.component />
               } 
             />
           ))}

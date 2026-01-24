@@ -1,0 +1,45 @@
+name: Deploy to AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to EC2
+        env:
+          PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+          HOST: ${{ secrets.EC2_HOST }}
+          USER: ${{ secrets.EC2_USER }}
+        run: |
+          echo "$PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          
+          # Copy files to EC2
+          scp -i private_key.pem -o StrictHostKeyChecking=no -r \
+            docker-compose.yml \
+            hostel_admin_backend/ \
+            hostel-frontend-starter/ \
+            deploy-production.sh \
+            nginx-production.conf \
+            ${USER}@${HOST}:~/sreelakshmi-hostel/
+          
+          # Execute deployment script on EC2
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ${USER}@${HOST} << 'EOF'
+            cd ~/sreelakshmi-hostel
+            chmod +x deploy-production.sh
+            ./deploy-production.sh
+          EOF
+          
+          rm -f private_key.pem
+
+      - name: Deployment Status
+        run: echo "Deployment completed successfully!"

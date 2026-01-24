@@ -12,15 +12,16 @@ import RoleTestPage from '../components/RoleTestPage';
 import RoleFilteredBranches from '../components/RoleFilteredBranches';
 import UserManagement from '../components/UserManagement';
 import Profile from '../components/Profile';
+import HomePage from '../components/public/HomePage';
 
 // Define all routes with their access controls
 export const routeConfig = [
   // Public routes (no authentication required)
   {
     path: '/',
-    component: LoginPage,
+    component: HomePage,
     isPublic: true,
-    title: 'Login'
+    title: 'Home'
   },
   {
     path: '/login',
