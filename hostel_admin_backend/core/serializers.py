@@ -10,11 +10,27 @@ from .models import (
 
 
 class UserSerializer(serializers.ModelSerializer):
-    """Basic user serializer"""
+    """Basic user serializer with email uniqueness validation"""
+    
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name']
         read_only_fields = ['id', 'username']
+    
+    def validate_email(self, value):
+        """
+        Validate that email is unique (case-insensitive)
+        """
+        if not value:
+            raise serializers.ValidationError("Email is required")
+        
+        # Check if email already exists (case-insensitive)
+        # Exclude current user if updating
+        user_id = self.instance.id if self.instance else None
+        if User.objects.filter(email__iexact=value).exclude(id=user_id).exists():
+            raise serializers.ValidationError("This email is already registered")
+        
+        return value.lower()  # Store email in lowercase
 
 
 class UserProfileSerializer(serializers.ModelSerializer):

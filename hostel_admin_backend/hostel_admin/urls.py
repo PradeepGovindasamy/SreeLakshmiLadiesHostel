@@ -22,6 +22,11 @@ urlpatterns = [
     # API endpoints
     path('api/', include('core.urls')),  # This includes all our new auth and enhanced endpoints
     
+    # New module endpoints
+    path('api/workers/', include('workers.urls')),
+    path('api/groceries/', include('groceries.urls')),
+    path('api/machines/', include('machines.urls')),
+    
     # Legacy endpoints (for backward compatibility)
     path('api/', include(router.urls)),
     

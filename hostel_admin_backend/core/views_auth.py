@@ -47,16 +47,33 @@ def create_user_with_profile_standalone(request):
             password = request.data.get('password')
             profile_data = request.data.get('profile', {})
             
-            # Validate required fields
+            # Validate required fields (username, password, and email are required)
             if not user_data['username'] or not password:
                 return Response({
                     'error': 'Username and password are required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if not user_data['email']:
+                return Response({
+                    'error': 'Email is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validate email format
+            if '@' not in user_data['email']:
+                return Response({
+                    'error': 'Invalid email format'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             # Check if username already exists
             if User.objects.filter(username=user_data['username']).exists():
                 return Response({
                     'error': 'Username already exists'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Check if email already exists
+            if User.objects.filter(email__iexact=user_data['email']).exists():
+                return Response({
+                    'error': 'Email already registered'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             # Create user
@@ -161,21 +178,24 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 def login_view(request):
     """
     Custom login view that returns user and profile information
+    Accepts login with either username OR email
     Expected by frontend: /api/auth/login/
     """
-    username = request.data.get('username')
+    # Accept 'username' or 'email' field - both work as identifier
+    identifier = request.data.get('username') or request.data.get('email')
     password = request.data.get('password')
     
-    if not username or not password:
+    if not identifier or not password:
         return Response({
-            'detail': 'Username and password are required'
+            'detail': 'Email/Username and password are required'
         }, status=status.HTTP_400_BAD_REQUEST)
     
-    user = authenticate(username=username, password=password)
+    # Authenticate using custom backend (supports email or username)
+    user = authenticate(request=request, username=identifier, password=password)
     
     if user is None:
         return Response({
-            'detail': 'Invalid credentials'
+            'detail': 'Invalid email/username or password'
         }, status=status.HTTP_401_UNAUTHORIZED)
     
     if not user.is_active:

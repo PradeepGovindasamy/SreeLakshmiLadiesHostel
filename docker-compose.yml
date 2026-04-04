@@ -10,7 +10,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"
     networks:
       - hostel-network
     healthcheck:
@@ -69,7 +69,7 @@ services:
       - static_files:/app/static
       - media_files:/app/media
       # Development only - comment out for production
-      # - ./hostel_admin_backend:/app
+      - ./hostel_admin_backend:/app
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/admin/login/"]
       interval: 30s

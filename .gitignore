@@ -1,3 +1,10 @@
+
+# Docker local backups / experiments
+docker-compose.yml_bkp
+docker-compose.yml_notworking
+
+
+
 # Environment files (NEVER commit!)
 .env
 .env.*

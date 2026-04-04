@@ -13,6 +13,9 @@ import RoleFilteredBranches from '../components/RoleFilteredBranches';
 import UserManagement from '../components/UserManagement';
 import Profile from '../components/Profile';
 import HomePage from '../components/public/HomePage';
+import Groceries from '../components/Groceries';
+import Machines from '../components/Machines';
+import Workers from '../components/Workers';
 
 // Define all routes with their access controls
 export const routeConfig = [
@@ -99,6 +102,32 @@ export const routeConfig = [
     title: 'Room Status',
     showInNav: true,
     navLabel: 'Room Status'
+  },
+
+  // Inventory & Management routes
+  {
+    path: '/groceries',
+    component: Groceries,
+    requiredRoles: ['owner', 'admin', 'warden'],
+    title: 'Groceries & Inventory',
+    showInNav: true,
+    navLabel: 'Groceries'
+  },
+  {
+    path: '/machines',
+    component: Machines,
+    requiredRoles: ['owner', 'admin', 'warden'],
+    title: 'Machines & Equipment',
+    showInNav: true,
+    navLabel: 'Machines'
+  },
+  {
+    path: '/workers',
+    component: Workers,
+    requiredRoles: ['owner', 'admin', 'warden'],
+    title: 'Workers Management',
+    showInNav: true,
+    navLabel: 'Workers'
   },
 
   // Warden specific routes

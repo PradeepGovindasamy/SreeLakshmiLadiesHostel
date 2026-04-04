@@ -16,7 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 
 const LoginPage = () => {
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState('');  // Can be username or email
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -30,7 +30,7 @@ const LoginPage = () => {
     setLoading(true);
 
     if (!username || !password) {
-      setError('Please enter both username and password');
+      setError('Please enter both email/username and password');
       setLoading(false);
       return;
     }
@@ -81,7 +81,8 @@ const LoginPage = () => {
 
         <TextField
           fullWidth
-          label="Username"
+          label="Email or Username"
+          placeholder="Enter your email or username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           onKeyPress={handleKeyPress}

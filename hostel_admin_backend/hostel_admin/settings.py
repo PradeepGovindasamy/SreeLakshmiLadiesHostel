@@ -59,11 +59,16 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'django_filters',
     'core',
+    'workers.apps.WorkersConfig',
+    'groceries.apps.GroceriesConfig',
+    'machines.apps.MachinesConfig',
 ]
 
 # Authentication Backends
+# Custom backend allows login with email or username
 AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',  # Default Django backend
+    'core.backends.EmailOrUsernameBackend',  # Custom: email or username login
+    'django.contrib.auth.backends.ModelBackend',  # Fallback: default Django backend
 ]
 
 MIDDLEWARE = [

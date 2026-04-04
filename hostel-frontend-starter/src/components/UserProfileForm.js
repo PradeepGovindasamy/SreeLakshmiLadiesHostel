@@ -50,7 +50,7 @@ function UserProfileForm({ open, onClose, onUpdate }) {
   const [success, setSuccess] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   
-  const { user, updateUser } = useUser();
+  const { user, updateProfile: updateUserProfile } = useUser();
 
   const [profileData, setProfileData] = useState({
     // Basic Information
@@ -244,7 +244,7 @@ function UserProfileForm({ open, onClose, onUpdate }) {
         }
 
         const response = await userAPI.updateProfile(updateData);
-        updateUser(response.data);
+        await updateUserProfile(response.data);
         setSuccess('Profile updated successfully');
       }
 

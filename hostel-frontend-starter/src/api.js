@@ -129,8 +129,10 @@ export const userAPI = {
     return api.get(url);
   },
   get: (id) => api.get(`/api/users/${id}/`),
+  getProfile: () => api.get('/api/auth/profile/'),
   create: (data) => api.post('/api/users/', data),
   update: (id, data) => api.put(`/api/users/${id}/`, data),
+  updateProfile: (data) => api.patch('/api/auth/profile/', data),
   delete: (id) => api.delete(`/api/users/${id}/`),
   updateUserProfile: (id, data) => api.patch(`/api/users/${id}/update_profile/`, data),
 };
