@@ -56,6 +56,16 @@ fi
 echo "🛑 Stopping existing containers..."
 docker compose down
 
+# Free up port 80 (stop conflicting services)
+echo "🔓 Freeing up port 80..."
+sudo systemctl stop nginx 2>/dev/null || echo "  ℹ️  Nginx not running"
+sudo systemctl stop apache2 2>/dev/null || echo "  ℹ️  Apache not running"
+sudo fuser -k 80/tcp 2>/dev/null || echo "  ℹ️  No process on port 80"
+
+# Free up port 8000 (Django backend)
+echo "🔓 Freeing up port 8000..."
+sudo fuser -k 8000/tcp 2>/dev/null || echo "  ℹ️  No process on port 8000"
+
 # Remove old images
 echo "🧹 Cleaning up old images..."
 docker image prune -f

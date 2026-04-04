@@ -1,5 +1,7 @@
 # Sree Lakshmi Ladies Hostel Management System
 
+<!-- Last deployment: 2026-04-04 -->
+
 A comprehensive hostel management system built with Django (Backend) and React (Frontend), fully containerized with Docker.
 
 ## Features
