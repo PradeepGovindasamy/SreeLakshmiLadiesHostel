@@ -45,7 +45,7 @@ class Migration(migrations.Migration):
     
     dependencies = [
         ('auth', '0012_alter_user_first_name_max_length'),  # Latest auth migration
-        ('core', '0002_add_family_info_to_tenant'),  # Your latest core migration
+        ('core', '0007_alter_room_sharing_type'),  # Depends on the latest core migration
     ]
     
     operations = [

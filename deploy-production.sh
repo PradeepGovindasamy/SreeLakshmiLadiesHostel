@@ -56,15 +56,12 @@ fi
 echo "🛑 Stopping existing containers..."
 docker compose down
 
-# Free up port 80 (stop conflicting services)
-echo "🔓 Freeing up port 80..."
-sudo systemctl stop nginx 2>/dev/null || echo "  ℹ️  Nginx not running"
-sudo systemctl stop apache2 2>/dev/null || echo "  ℹ️  Apache not running"
-sudo fuser -k 80/tcp 2>/dev/null || echo "  ℹ️  No process on port 80"
-
 # Free up port 8000 (Django backend)
 echo "🔓 Freeing up port 8000..."
 sudo fuser -k 8000/tcp 2>/dev/null || echo "  ℹ️  No process on port 8000"
+
+# Note: We keep nginx running as it's needed for domain/SSL routing
+# Docker frontend will use port 3000, nginx will proxy from 80/443 to 3000
 
 # Remove old images
 echo "🧹 Cleaning up old images..."
@@ -88,6 +85,25 @@ docker compose ps
 # Show logs
 echo "📝 Recent logs:"
 docker compose logs --tail=50
+
+# Configure and start Nginx for domain access
+echo "🔧 Configuring Nginx..."
+if [ -f nginx-production.conf ]; then
+    sudo cp nginx-production.conf /etc/nginx/sites-available/sreelakshmi-hostel 2>/dev/null || echo "  ℹ️  Nginx config already exists"
+    sudo ln -sf /etc/nginx/sites-available/sreelakshmi-hostel /etc/nginx/sites-enabled/ 2>/dev/null || echo "  ℹ️  Symlink already exists"
+    
+    # Test nginx configuration
+    sudo nginx -t && {
+        echo "✅ Nginx configuration valid"
+        sudo systemctl enable nginx
+        sudo systemctl restart nginx
+        echo "✅ Nginx started successfully"
+    } || {
+        echo "${YELLOW}⚠️  Nginx configuration has errors. Please check manually.${NC}"
+    }
+else
+    echo "${YELLOW}⚠️  nginx-production.conf not found. Skipping nginx setup.${NC}"
+fi
 
 # Setup SSL if not already done
 if [ ! -f /etc/letsencrypt/live/sreelakshmiladieshostel.com/fullchain.pem ]; then

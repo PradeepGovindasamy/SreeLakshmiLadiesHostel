@@ -91,7 +91,8 @@ services:
     depends_on:
       - backend
     ports:
-      - "80:80"
+      # Port 80 removed - host nginx handles external access
+      # Nginx will proxy to this container on port 3000
       - "3000:80"
     networks:
       - hostel-network
