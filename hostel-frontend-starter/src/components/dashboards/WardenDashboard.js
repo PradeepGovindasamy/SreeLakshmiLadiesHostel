@@ -41,52 +41,35 @@ const WardenDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      
-      // Fetch assigned property and related data
-      const propertyResponse = await api.get('/api/warden/assigned-property/');
-      const assignedProperty = propertyResponse.data;
+      const [branchesRes, tenantsRes, roomsRes] = await Promise.all([
+        enhancedAPI.branches.list(),
+        enhancedAPI.tenants.list(),
+        enhancedAPI.rooms.list(),
+      ]);
+      const branches = branchesRes.data.results || branchesRes.data || [];
+      const allTenants = tenantsRes.data.results || tenantsRes.data || [];
+      const rooms = roomsRes.data.results || roomsRes.data || [];
 
-      // Fetch tenants in assigned property
-      const tenantsResponse = await api.get('/api/tenants/');
-      const tenants = tenantsResponse.data.results || tenantsResponse.data;
-
-      // Fetch service requests for assigned property
-      const requestsResponse = await api.get('/api/tenant-requests/');
-      const requests = requestsResponse.data.results || requestsResponse.data;
-
-      // Separate pending and recent requests
-      const pendingRequests = requests.filter(req => 
-        req.status === 'open' || req.status === 'in_progress'
-      );
-      const recentRequests = requests.slice(0, 10);
-
-      // Calculate statistics
-      const totalRooms = assignedProperty?.num_rooms || assignedProperty?.total_rooms || 0;
-      const occupiedRooms = assignedProperty?.occupied_rooms || 0;
-      const totalTenants = tenants.length;
-      const pendingCount = pendingRequests.length;
-      const urgentRequests = pendingRequests.filter(req => 
-        req.priority === 'urgent' || req.priority === 'high'
-      ).length;
-      const monthlyCollection = tenants.reduce((sum, tenant) => 
-        sum + (tenant.rent_amount || 0), 0
-      );
+      const activeTenants = allTenants.filter(t => t.joining_date && !t.vacating_date);
+      const totalRooms = rooms.length;
+      const occupiedRooms = rooms.filter(r => (r.current_occupancy || 0) > 0).length;
+      const monthlyCollection = activeTenants.reduce((s, t) => s + (parseFloat(t.rent_amount) || 0), 0);
+      const assignedProperty = branches.length > 0 ? branches[0] : null;
 
       setDashboardData({
         assignedProperty,
-        tenants,
-        recentRequests,
-        pendingRequests,
+        tenants: activeTenants,
+        recentRequests: [],
+        pendingRequests: [],
         statistics: {
           totalRooms,
           occupiedRooms,
-          totalTenants,
-          pendingRequests: pendingCount,
-          urgentRequests,
+          totalTenants: activeTenants.length,
+          pendingRequests: 0,
+          urgentRequests: 0,
           monthlyCollection
         }
       });
-
       setError(null);
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
@@ -96,26 +79,17 @@ const WardenDashboard = () => {
     }
   };
 
-  const StatCard = ({ title, value, icon, color = 'primary', subtitle, onClick }) => (
-    <Card sx={{ height: '100%', cursor: onClick ? 'pointer' : 'default' }} onClick={onClick}>
-      <CardContent>
-        <Box display="flex" alignItems="center" justifyContent="space-between">
+  const StatCard = ({ title, value, icon, gradient, subtitle, onClick }) => (
+    <Card elevation={0} onClick={onClick} sx={{ height: '100%', border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden', position: 'relative', cursor: onClick ? 'pointer' : 'default', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: 4 } }}>
+      <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: gradient }} />
+      <CardContent sx={{ pt: 2.5 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <Box>
-            <Typography color="textSecondary" gutterBottom variant="body2">
-              {title}
-            </Typography>
-            <Typography variant="h4" component="div" color={color}>
-              {value}
-            </Typography>
-            {subtitle && (
-              <Typography variant="body2" color="textSecondary">
-                {subtitle}
-              </Typography>
-            )}
+            <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.8 }}>{title}</Typography>
+            <Typography variant="h3" fontWeight={800} color="grey.900" sx={{ mt: 0.5, lineHeight: 1 }}>{value}</Typography>
+            {subtitle && <Typography variant="caption" color="text.secondary">{subtitle}</Typography>}
           </Box>
-          <Avatar sx={{ bgcolor: `${color}.main`, width: 56, height: 56 }}>
-            {icon}
-          </Avatar>
+          <Avatar sx={{ borderRadius: 2, background: gradient, width: 44, height: 44 }}>{icon}</Avatar>
         </Box>
       </CardContent>
     </Card>
@@ -149,28 +123,29 @@ const WardenDashboard = () => {
 
   if (loading) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Typography variant="h4" gutterBottom>Loading Dashboard...</Typography>
-        <LinearProgress />
+      <Box sx={{ p: 4 }}>
+        <LinearProgress sx={{ borderRadius: 2, mb: 2 }} />
+        <Typography color="text.secondary">Loading dashboard…</Typography>
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">{error}</Alert>
-        <Button onClick={fetchDashboardData} sx={{ mt: 2 }}>Retry</Button>
+      <Box sx={{ p: 4 }}>
+        <Alert severity="error" sx={{ borderRadius: 2 }}
+          action={<Button size="small" onClick={fetchDashboardData}>Retry</Button>}
+        >{error}</Alert>
       </Box>
     );
   }
 
   const { assignedProperty, tenants, recentRequests, pendingRequests, statistics } = dashboardData;
-  const occupancyRate = statistics.totalRooms > 0 ? 
+  const occupancyRate = statistics.totalRooms > 0 ?
     Math.round((statistics.occupiedRooms / statistics.totalRooms) * 100) : 0;
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: { xs: 2, md: 4 } }}>
       {/* Header */}
       <Box mb={4}>
         <Typography variant="h4" gutterBottom>
@@ -193,61 +168,55 @@ const WardenDashboard = () => {
       {/* Statistics Cards */}
       <Grid container spacing={3} mb={4}>
         <Grid item xs={12} sm={6} md={2}>
-          <StatCard 
-            title="Total Rooms" 
+          <StatCard
+            title="Total Rooms"
             value={statistics.totalRooms}
             icon={<Home />}
-            color="info"
+            gradient="linear-gradient(135deg,#0ea5e9,#06b6d4)"
             onClick={() => navigate('/rooms')}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={2}>
-          <StatCard 
-            title="Occupied" 
+          <StatCard
+            title="Occupied"
             value={statistics.occupiedRooms}
             icon={<People />}
-            color="success"
+            gradient="linear-gradient(135deg,#10b981,#059669)"
             subtitle={`${occupancyRate}% occupancy`}
             onClick={() => navigate('/tenants')}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={2}>
-          <StatCard 
-            title="Total Tenants" 
+          <StatCard
+            title="Total Tenants"
             value={statistics.totalTenants}
             icon={<People />}
-            color="primary"
+            gradient="linear-gradient(135deg,#1e40af,#3b82f6)"
             onClick={() => navigate('/tenants')}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={2}>
-          <StatCard 
-            title="Pending Requests" 
+          <StatCard
+            title="Pending Requests"
             value={statistics.pendingRequests}
             icon={<ListAlt />}
-            color="warning"
-            onClick={() => navigate('/tenant-requests')}
+            gradient="linear-gradient(135deg,#f59e0b,#d97706)"
           />
         </Grid>
         <Grid item xs={12} sm={6} md={2}>
-          <StatCard 
-            title="Urgent Tasks" 
+          <StatCard
+            title="Urgent Tasks"
             value={statistics.urgentRequests}
-            icon={
-              <Badge badgeContent={statistics.urgentRequests} color="error">
-                <PriorityHigh />
-              </Badge>
-            }
-            color="error"
-            onClick={() => navigate('/tenant-requests?priority=urgent,high')}
+            icon={<PriorityHigh />}
+            gradient="linear-gradient(135deg,#ef4444,#dc2626)"
           />
         </Grid>
         <Grid item xs={12} sm={6} md={2}>
-          <StatCard 
-            title="Monthly Collection" 
+          <StatCard
+            title="Monthly Collection"
             value={`₹${statistics.monthlyCollection.toLocaleString()}`}
             icon={<Payment />}
-            color="success"
+            gradient="linear-gradient(135deg,#10b981,#059669)"
           />
         </Grid>
       </Grid>

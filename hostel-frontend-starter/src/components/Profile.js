@@ -80,42 +80,70 @@ function Profile() {
       </Typography>
 
       {/* Profile Summary Card */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+      <Card elevation={0} sx={{ mb: 3, border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
+        {/* Gradient banner */}
+        <Box sx={{
+          height: 120,
+          background: userRole === 'admin' ? 'linear-gradient(135deg, #5b21b6, #7c3aed)' :
+                      userRole === 'owner' ? 'linear-gradient(135deg, #1e40af, #3b82f6)' :
+                      userRole === 'warden' ? 'linear-gradient(135deg, #0c4a6e, #0891b2)' :
+                      'linear-gradient(135deg, #065f46, #059669)',
+          position: 'relative',
+        }}>
+          <Button
+            variant="contained"
+            startIcon={<EditIcon />}
+            onClick={handleOpenProfileForm}
+            size="small"
+            sx={{
+              position: 'absolute', top: 12, right: 12,
+              backgroundColor: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)',
+              color: '#fff', fontWeight: 600, borderRadius: 2,
+              '&:hover': { backgroundColor: 'rgba(255,255,255,0.25)' },
+            }}
+          >
+            Edit Profile
+          </Button>
+        </Box>
+        <CardContent sx={{ pt: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2, mt: -5, mb: 1, flexWrap: 'wrap' }}>
             <Avatar
-              sx={{ width: 80, height: 80, mr: 3, bgcolor: 'primary.main' }}
+              sx={{
+                width: 96, height: 96, fontSize: 36, fontWeight: 800,
+                bgcolor: userRole === 'admin' ? '#7c3aed' :
+                         userRole === 'owner' ? '#1d4ed8' :
+                         userRole === 'warden' ? '#0891b2' : '#059669',
+                border: '4px solid #fff',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+              }}
               src={user.avatar}
             >
               {getInitials(user)}
             </Avatar>
-            <Box sx={{ flexGrow: 1 }}>
-              <Typography variant="h5" gutterBottom>
-                {getDisplayName(user)}
-              </Typography>
-              <Typography variant="body1" color="text.secondary" gutterBottom>
-                {user.email}
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                <Chip
-                  label={userRole?.toUpperCase()}
-                  color="primary"
-                  size="small"
-                />
-                <Chip
-                  label={user.is_active ? 'Active' : 'Inactive'}
-                  color={user.is_active ? 'success' : 'error'}
-                  size="small"
-                />
-              </Box>
+            <Box sx={{ pb: 1, flexGrow: 1 }}>
+              <Typography variant="h5" fontWeight={800}>{getDisplayName(user)}</Typography>
+              <Typography variant="body2" color="text.secondary">{user.email}</Typography>
             </Box>
-            <Button
-              variant="contained"
-              startIcon={<EditIcon />}
-              onClick={handleOpenProfileForm}
-            >
-              Edit Profile
-            </Button>
+            <Box sx={{ pb: 1, display: 'flex', gap: 1 }}>
+              <Chip
+                label={userRole?.charAt(0).toUpperCase() + userRole?.slice(1)}
+                size="small"
+                sx={{
+                  fontWeight: 700,
+                  backgroundColor: userRole === 'admin' ? '#ede9fe' :
+                                   userRole === 'owner' ? '#dbeafe' :
+                                   userRole === 'warden' ? '#e0f2fe' : '#dcfce7',
+                  color: userRole === 'admin' ? '#6d28d9' :
+                         userRole === 'owner' ? '#1d4ed8' :
+                         userRole === 'warden' ? '#0369a1' : '#15803d',
+                }}
+              />
+              <Chip
+                label={user.is_active ? 'Active' : 'Inactive'}
+                color={user.is_active ? 'success' : 'error'}
+                size="small"
+              />
+            </Box>
           </Box>
         </CardContent>
       </Card>

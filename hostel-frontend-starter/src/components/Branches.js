@@ -154,84 +154,46 @@ function Branches() {
       )}
 
       {/* Summary Cards */}
-      <Grid container spacing={3} mb={3}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center">
-                <HomeIcon color="primary" sx={{ mr: 2 }} />
-                <Box>
-                  <Typography variant="h6">{branches.length}</Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    Total Properties
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center">
-                <PeopleIcon color="secondary" sx={{ mr: 2 }} />
-                <Box>
-                  <Typography variant="h6">
-                    {branches.reduce((sum, branch) => sum + (branch.num_rooms || branch.total_rooms || 0), 0)}
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    Total Rooms
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center">
-                <HomeIcon color="success" sx={{ mr: 2 }} />
-                <Box>
-                  <Typography variant="h6">
-                    {branches.reduce((sum, branch) => sum + (branch.occupied_beds || 0), 0)}
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    Occupied Beds
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center">
-                <PeopleIcon color="info" sx={{ mr: 2 }} />
-                <Box>
-                  <Typography variant="h6">
-                    {branches.reduce((sum, branch) => sum + (branch.total_beds || 0), 0)}
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    Total Beds
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      {(() => {
+        const totalRooms = branches.reduce((s, b) => s + (b.num_rooms || b.total_rooms || 0), 0);
+        const totalBeds = branches.reduce((s, b) => s + (b.total_beds || 0), 0);
+        const occupiedBeds = branches.reduce((s, b) => s + (b.occupied_beds || 0), 0);
+        const pct = totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
+        const STAT_CARDS = [
+          { label: 'Total Properties', val: branches.length, icon: <HomeIcon />, grad: 'linear-gradient(135deg,#1e40af,#3b82f6)' },
+          { label: 'Total Rooms', val: totalRooms, icon: <PeopleIcon />, grad: 'linear-gradient(135deg,#0ea5e9,#06b6d4)' },
+          { label: 'Occupied Beds', val: occupiedBeds, sub: `${pct}% occupancy`, icon: <HomeIcon />, grad: 'linear-gradient(135deg,#10b981,#059669)' },
+          { label: 'Total Beds', val: totalBeds, icon: <PeopleIcon />, grad: 'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
+        ];
+        return (
+          <Grid container spacing={3} mb={4}>
+            {STAT_CARDS.map(({ label, val, icon, sub, grad }) => (
+              <Grid item xs={12} sm={6} md={3} key={label}>
+                <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden', position: 'relative', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: 4 } }}>
+                  <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: grad }} />
+                  <CardContent sx={{ pt: 2.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <Box>
+                        <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.8 }}>{label}</Typography>
+                        <Typography variant="h3" fontWeight={800} color="grey.900" sx={{ mt: 0.5, lineHeight: 1 }}>{val}</Typography>
+                        {sub && <Typography variant="caption" color="text.secondary">{sub}</Typography>}
+                      </Box>
+                      <Avatar sx={{ borderRadius: 2, background: grad, width: 44, height: 44 }}>{icon}</Avatar>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        );
+      })()}
 
       {/* Branches Table */}
-      <Paper elevation={3}>
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
         <TableContainer>
           <Table>
-            <TableHead sx={{ backgroundColor: '#e3f2fd' }}>
-              <TableRow>
+            <TableHead>
+              <TableRow sx={{ '& th': { fontWeight: 700, color: 'text.secondary', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: '2px solid #e2e8f0', backgroundColor: '#f8fafc' } }}>
                 <TableCell>Property Name</TableCell>
                 <TableCell>Address</TableCell>
                 <TableCell>Owner</TableCell>
@@ -246,7 +208,7 @@ function Branches() {
               {branches
                 .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                 .map((branch) => (
-                  <TableRow key={branch.id}>
+                  <TableRow key={branch.id} sx={{ '&:hover': { backgroundColor: '#f8fafc' }, borderLeft: branch.is_active ? '3px solid #22c55e' : '3px solid #d1d5db' }}>
                     <TableCell>
                       <Typography variant="subtitle2">{branch.name}</Typography>
                       {branch.description && (

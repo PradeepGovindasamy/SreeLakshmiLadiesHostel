@@ -729,21 +729,25 @@ function UserManagement() {
             />
           </Grid>
           
-          <Grid item xs={12} sm={4}>
-            <FormControl fullWidth>
-              <InputLabel>Filter by Role</InputLabel>
-              <Select
-                value={selectedRole}
-                label="Filter by Role"
-                onChange={(e) => setSelectedRole(e.target.value)}
-              >
-                <MenuItem value="all">All Roles</MenuItem>
-                <MenuItem value="admin">Administrator</MenuItem>
-                <MenuItem value="owner">Property Owner</MenuItem>
-                <MenuItem value="warden">Warden</MenuItem>
-                <MenuItem value="tenant">Tenant</MenuItem>
-              </Select>
-            </FormControl>
+          <Grid item xs={12} sm={6}>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              {[
+                { label: 'All', value: 'all' },
+                { label: 'Admin', value: 'admin' },
+                { label: 'Owner', value: 'owner' },
+                { label: 'Warden', value: 'warden' },
+                { label: 'Tenant', value: 'tenant' },
+              ].map(({ label, value }) => (
+                <Chip
+                  key={value}
+                  label={label}
+                  onClick={() => setSelectedRole(value)}
+                  color={selectedRole === value ? 'primary' : 'default'}
+                  variant={selectedRole === value ? 'filled' : 'outlined'}
+                  sx={{ fontWeight: 600, cursor: 'pointer' }}
+                />
+              ))}
+            </Box>
           </Grid>
         </Grid>
       </Paper>

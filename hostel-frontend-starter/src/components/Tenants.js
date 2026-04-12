@@ -347,92 +347,58 @@ function Tenants() {
       )}
 
       {/* Summary Cards */}
-      <Grid container spacing={3} mb={3}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center">
-                <PersonIcon color="primary" sx={{ mr: 2 }} />
-                <Box>
-                  <Typography variant="h6">{totalTenants}</Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    Total Tenants
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center">
-                <CheckCircleIcon color="success" sx={{ mr: 2 }} />
-                <Box>
-                  <Typography variant="h6">{activeTenants}</Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    Active
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center">
-                <WarningIcon color="warning" sx={{ mr: 2 }} />
-                <Box>
-                  <Typography variant="h6">{pendingTenants}</Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    Pending
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center">
-                <HomeIcon color="info" sx={{ mr: 2 }} />
-                <Box>
-                  <Typography variant="h6">{inactiveTenants}</Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    Inactive
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      {(() => {
+        const T_STATS = [
+          { label: 'Total Tenants', val: totalTenants, icon: <PersonIcon />, grad: 'linear-gradient(135deg,#1e40af,#3b82f6)' },
+          { label: 'Active', val: activeTenants, icon: <CheckCircleIcon />, grad: 'linear-gradient(135deg,#10b981,#059669)' },
+          { label: 'Pending', val: pendingTenants, icon: <WarningIcon />, grad: 'linear-gradient(135deg,#f59e0b,#d97706)' },
+          { label: 'Inactive', val: inactiveTenants, icon: <HomeIcon />, grad: 'linear-gradient(135deg,#6b7280,#4b5563)' },
+        ];
+        return (
+          <Grid container spacing={3} mb={4}>
+            {T_STATS.map(({ label, val, icon, grad }) => (
+              <Grid item xs={12} sm={6} md={3} key={label}>
+                <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden', position: 'relative', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: 4 } }}>
+                  <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: grad }} />
+                  <CardContent sx={{ pt: 2.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <Box>
+                        <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.8 }}>{label}</Typography>
+                        <Typography variant="h3" fontWeight={800} color="grey.900" sx={{ mt: 0.5, lineHeight: 1 }}>{val}</Typography>
+                      </Box>
+                      <Avatar sx={{ borderRadius: 2, background: grad, width: 44, height: 44 }}>{icon}</Avatar>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        );
+      })()}
 
       {/* Filters */}
-      <Paper elevation={1} sx={{ p: 2, mb: 3 }}>
+      <Paper elevation={0} sx={{ p: 2.5, mb: 3, border: '1px solid #e2e8f0', borderRadius: 3 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={3}>
+          <Grid item xs={12} sm={4}>
             <TextField
               fullWidth
+              size="small"
               label="Search Tenants"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Name, email, or phone..."
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
             />
           </Grid>
-          
-          <Grid item xs={12} sm={3}>
-            <FormControl fullWidth>
-              <InputLabel>Filter by Property</InputLabel>
+
+          <Grid item xs={12} sm={4}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Property</InputLabel>
               <Select
                 value={selectedBranch}
-                label="Filter by Property"
+                label="Property"
                 onChange={(e) => setSelectedBranch(e.target.value)}
+                sx={{ borderRadius: 2 }}
               >
                 <MenuItem value="all">All Properties</MenuItem>
                 {branches.map((branch) => (
@@ -443,32 +409,42 @@ function Tenants() {
               </Select>
             </FormControl>
           </Grid>
-          
-          <Grid item xs={12} sm={3}>
-            <FormControl fullWidth>
-              <InputLabel>Filter by Status</InputLabel>
-              <Select
-                value={selectedStatus}
-                label="Filter by Status"
-                onChange={(e) => setSelectedStatus(e.target.value)}
-              >
-                <MenuItem value="all">All Statuses</MenuItem>
-                <MenuItem value="active">Active</MenuItem>
-                <MenuItem value="pending">Pending</MenuItem>
-                <MenuItem value="inactive">Inactive</MenuItem>
-                <MenuItem value="terminated">Terminated</MenuItem>
-              </Select>
-            </FormControl>
+
+          <Grid item xs={12} sm={4}>
+            <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
+              {[
+                { label: 'All', value: 'all' },
+                { label: 'Active', value: 'active', bg: '#059669' },
+                { label: 'Pending', value: 'pending', bg: '#f59e0b' },
+                { label: 'Inactive', value: 'inactive', bg: '#6b7280' },
+              ].map(({ label, value, bg }) => (
+                <Chip
+                  key={value}
+                  label={label}
+                  size="small"
+                  onClick={() => setSelectedStatus(value)}
+                  sx={{
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    borderColor: selectedStatus === value ? (bg || '#1d4ed8') : '#e2e8f0',
+                    backgroundColor: selectedStatus === value ? (bg || '#1d4ed8') : 'transparent',
+                    color: selectedStatus === value ? '#fff' : 'text.secondary',
+                    '&:hover': { opacity: 0.85 },
+                  }}
+                  variant="outlined"
+                />
+              ))}
+            </Box>
           </Grid>
         </Grid>
       </Paper>
 
       {/* Tenants Table */}
-      <Paper elevation={3}>
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
         <TableContainer>
           <Table>
-            <TableHead sx={{ backgroundColor: '#e3f2fd' }}>
-              <TableRow>
+            <TableHead>
+              <TableRow sx={{ '& th': { fontWeight: 700, color: 'text.secondary', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: '2px solid #e2e8f0', backgroundColor: '#f8fafc' } }}>
                 <TableCell>Tenant</TableCell>
                 <TableCell>Contact Info</TableCell>
                 <TableCell>Property & Room</TableCell>
@@ -482,7 +458,7 @@ function Tenants() {
               {filteredTenants
                 .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                 .map((tenant) => (
-                  <TableRow key={tenant.id}>
+                  <TableRow key={tenant.id} sx={{ borderLeft: tenant.status === 'active' ? '3px solid #22c55e' : tenant.status === 'pending' ? '3px solid #f59e0b' : '3px solid #d1d5db', '&:hover': { backgroundColor: '#f8fafc' } }}>
                     <TableCell>
                       <Box display="flex" alignItems="center">
                         <Avatar sx={{ mr: 2 }}>

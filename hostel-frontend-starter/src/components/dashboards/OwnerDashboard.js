@@ -2,78 +2,119 @@
 import React, { useState, useEffect } from 'react';
 import {
   Grid, Card, CardContent, Typography, Box, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Paper, Chip, Avatar, Divider,
-  LinearProgress, Alert, IconButton, Tooltip, Button
+  TableContainer, TableHead, TableRow, Chip, LinearProgress, Alert,
+  IconButton, Tooltip, Button, Avatar, Stack, Paper
 } from '@mui/material';
 import {
-  Business, Home, People, Payment, TrendingUp, ListAlt,
-  Visibility, Edit, Add, Assessment
+  Business, Home, People, Payment, TrendingUp,
+  Visibility, Add, Refresh, ArrowUpward, MeetingRoom
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { enhancedAPI } from '../../api';
 import { useUser } from '../../contexts/UserContext';
 
+// ─── Reusable stat card ──────────────────────────────────────────────────────
+function StatCard({ title, value, subtitle, icon, gradient, trend }) {
+  return (
+    <Card elevation={0} sx={{
+      height: '100%',
+      border: '1px solid #e2e8f0',
+      borderRadius: 3,
+      overflow: 'hidden',
+      position: 'relative',
+      transition: 'box-shadow 0.2s',
+      '&:hover': { boxShadow: 6 },
+    }}>
+      <Box sx={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: 4,
+        background: gradient,
+      }} />
+      <CardContent sx={{ pt: 2.5 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <Box>
+            <Typography variant="caption" fontWeight={600} color="text.secondary"
+              sx={{ textTransform: 'uppercase', letterSpacing: 0.8 }}>
+              {title}
+            </Typography>
+            <Typography variant="h3" fontWeight={800} color="grey.900" sx={{ mt: 0.5, lineHeight: 1 }}>
+              {value}
+            </Typography>
+            {subtitle && (
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                {subtitle}
+              </Typography>
+            )}
+          </Box>
+          <Avatar sx={{
+            width: 48, height: 48, borderRadius: 2,
+            background: gradient, boxShadow: '0 4px 14px rgba(0,0,0,0.15)'
+          }}>
+            {icon}
+          </Avatar>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Section header ──────────────────────────────────────────────────────────
+function SectionHeader({ title, actionLabel, onAction }) {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      <Typography variant="h6" fontWeight={700} color="grey.900">{title}</Typography>
+      {actionLabel && (
+        <Button size="small" variant="outlined" onClick={onAction}
+          sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}>
+          {actionLabel}
+        </Button>
+      )}
+    </Box>
+  );
+}
+
+// ─── OwnerDashboard ──────────────────────────────────────────────────────────
 const OwnerDashboard = () => {
   const navigate = useNavigate();
-  const { user, getUserName } = useUser();
+  const { getUserName } = useUser();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState({
     properties: [],
     tenants: [],
-    recentRequests: [],
     statistics: {
-      totalProperties: 0,
-      totalRooms: 0,
-      occupiedRooms: 0,
-      totalTenants: 0,
-      pendingRequests: 0,
-      monthlyRevenue: 0
+      totalProperties: 0, totalRooms: 0, occupiedRooms: 0,
+      totalTenants: 0, pendingRequests: 0, monthlyRevenue: 0
     }
   });
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
+  useEffect(() => { fetchDashboardData(); }, []);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      
-      // Fetch properties (branches)
-      const propertiesResponse = await enhancedAPI.branches.list();
-      const properties = propertiesResponse.data.results || propertiesResponse.data;
+      const [propertiesRes, tenantsRes] = await Promise.all([
+        enhancedAPI.branches.list(),
+        enhancedAPI.tenants.list(),
+      ]);
+      const properties = propertiesRes.data.results || propertiesRes.data;
+      const tenants = tenantsRes.data.results || tenantsRes.data;
 
-      // Fetch tenants for owned properties
-      const tenantsResponse = await enhancedAPI.tenants.list();
-      const tenants = tenantsResponse.data.results || tenantsResponse.data;
-
-      // Fetch recent service requests - temporarily commented out as endpoint might not be available
-      // const requestsResponse = await api.get('/api/tenant-requests/?limit=10');
-      const recentRequests = []; // Empty array until tenant requests are fixed
-
-      // Calculate statistics
-      const totalProperties = properties.length;
-      const totalRooms = properties.reduce((sum, property) => sum + (property.num_rooms || property.total_rooms || 0), 0);
-      const occupiedRooms = properties.reduce((sum, property) => sum + (property.occupied_rooms || 0), 0);
-      const totalTenants = tenants.length;
-      const pendingRequests = recentRequests.filter(req => req.status === 'open' || req.status === 'in_progress').length;
-      const monthlyRevenue = tenants.reduce((sum, tenant) => sum + (tenant.rent_amount || 0), 0);
+      const totalRooms    = properties.reduce((s, p) => s + (p.total_rooms || p.num_rooms || 0), 0);
+      const occupiedRooms = properties.reduce((s, p) => s + (p.occupied_rooms || 0), 0);
+      const monthlyRevenue = tenants.reduce((s, t) => s + (parseFloat(t.rent_amount) || 0), 0);
 
       setDashboardData({
         properties,
-        tenants: tenants.slice(0, 10), // Show recent 10 tenants
-        recentRequests: recentRequests.slice(0, 5), // Show recent 5 requests
+        tenants: tenants.slice(0, 10),
         statistics: {
-          totalProperties,
+          totalProperties: properties.length,
           totalRooms,
           occupiedRooms,
-          totalTenants,
-          pendingRequests,
-          monthlyRevenue
+          totalTenants: tenants.length,
+          pendingRequests: 0,
+          monthlyRevenue,
         }
       });
-
       setError(null);
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
@@ -83,200 +124,176 @@ const OwnerDashboard = () => {
     }
   };
 
-  const StatCard = ({ title, value, icon, color = 'primary', subtitle }) => (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box display="flex" alignItems="center" justifyContent="space-between">
-          <Box>
-            <Typography color="textSecondary" gutterBottom variant="body2">
-              {title}
-            </Typography>
-            <Typography variant="h4" component="div" color={color}>
-              {value}
-            </Typography>
-            {subtitle && (
-              <Typography variant="body2" color="textSecondary">
-                {subtitle}
-              </Typography>
-            )}
-          </Box>
-          <Avatar sx={{ bgcolor: `${color}.main`, width: 56, height: 56 }}>
-            {icon}
-          </Avatar>
-        </Box>
-      </CardContent>
-    </Card>
-  );
-
-  const getStatusChip = (status) => {
-    const statusColors = {
-      'open': 'error',
-      'in_progress': 'warning', 
-      'resolved': 'success',
-      'closed': 'default'
-    };
-    return (
-      <Chip 
-        label={status?.replace('_', ' ').toUpperCase()} 
-        color={statusColors[status] || 'default'} 
-        size="small"
-      />
-    );
-  };
-
   if (loading) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Typography variant="h4" gutterBottom>Loading Dashboard...</Typography>
-        <LinearProgress />
+      <Box sx={{ p: 4 }}>
+        <LinearProgress sx={{ borderRadius: 2, mb: 2 }} />
+        <Typography color="text.secondary">Loading your dashboard…</Typography>
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">{error}</Alert>
-        <Button onClick={fetchDashboardData} sx={{ mt: 2 }}>Retry</Button>
+      <Box sx={{ p: 4 }}>
+        <Alert severity="error" action={
+          <Button size="small" startIcon={<Refresh />} onClick={fetchDashboardData}>Retry</Button>
+        }>{error}</Alert>
       </Box>
     );
   }
 
-  const { properties, tenants, recentRequests, statistics } = dashboardData;
-  const occupancyRate = statistics.totalRooms > 0 ? 
-    Math.round((statistics.occupiedRooms / statistics.totalRooms) * 100) : 0;
+  const { properties, tenants, statistics } = dashboardData;
+  const occupancyRate = statistics.totalRooms > 0
+    ? Math.round((statistics.occupiedRooms / statistics.totalRooms) * 100) : 0;
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* Header */}
-      <Box mb={4}>
-        <Typography variant="h4" gutterBottom>
-          Welcome back, {getUserName()}!
+    <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1400, mx: 'auto' }}>
+
+      {/* ── Welcome header ── */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" fontWeight={800} color="grey.900">
+          Good day, {getUserName()} 👋
         </Typography>
-        <Typography variant="subtitle1" color="textSecondary">
-          Owner Dashboard - Manage your properties and tenants
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          Here's what's happening across your properties today.
         </Typography>
       </Box>
 
-      {/* Statistics Cards */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} sm={6} md={2}>
-          <StatCard 
-            title="Properties" 
-            value={statistics.totalProperties}
-            icon={<Business />}
-            color="primary"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={2}>
-          <StatCard 
-            title="Total Rooms" 
-            value={statistics.totalRooms}
-            icon={<Home />}
-            color="info"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={2}>
-          <StatCard 
-            title="Occupied" 
-            value={statistics.occupiedRooms}
-            icon={<People />}
-            color="success"
-            subtitle={`${occupancyRate}% occupancy`}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={2}>
-          <StatCard 
-            title="Total Tenants" 
-            value={statistics.totalTenants}
-            icon={<People />}
-            color="warning"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={2}>
-          <StatCard 
-            title="Pending Requests" 
-            value={statistics.pendingRequests}
-            icon={<ListAlt />}
-            color="error"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={2}>
-          <StatCard 
-            title="Monthly Revenue" 
-            value={`₹${statistics.monthlyRevenue.toLocaleString()}`}
-            icon={<Payment />}
-            color="success"
-          />
-        </Grid>
+      {/* ── Stat cards ── */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        {[
+          {
+            title: 'Properties', value: statistics.totalProperties,
+            icon: <Business sx={{ fontSize: 22 }} />,
+            gradient: 'linear-gradient(135deg,#3b82f6,#6366f1)',
+          },
+          {
+            title: 'Total Rooms', value: statistics.totalRooms,
+            icon: <MeetingRoom sx={{ fontSize: 22 }} />,
+            gradient: 'linear-gradient(135deg,#0ea5e9,#06b6d4)',
+          },
+          {
+            title: 'Occupied Rooms', value: statistics.occupiedRooms,
+            subtitle: `${occupancyRate}% occupancy rate`,
+            icon: <Home sx={{ fontSize: 22 }} />,
+            gradient: 'linear-gradient(135deg,#10b981,#059669)',
+          },
+          {
+            title: 'Active Tenants', value: statistics.totalTenants,
+            icon: <People sx={{ fontSize: 22 }} />,
+            gradient: 'linear-gradient(135deg,#f59e0b,#ef4444)',
+          },
+          {
+            title: 'Vacant Rooms', value: statistics.totalRooms - statistics.occupiedRooms,
+            subtitle: `${100 - occupancyRate}% available`,
+            icon: <TrendingUp sx={{ fontSize: 22 }} />,
+            gradient: 'linear-gradient(135deg,#8b5cf6,#7c3aed)',
+          },
+          {
+            title: 'Est. Monthly Revenue',
+            value: `₹${statistics.monthlyRevenue.toLocaleString('en-IN')}`,
+            icon: <Payment sx={{ fontSize: 22 }} />,
+            gradient: 'linear-gradient(135deg,#ec4899,#f43f5e)',
+          },
+        ].map((card) => (
+          <Grid item xs={12} sm={6} md={4} lg={2} key={card.title}>
+            <StatCard {...card} />
+          </Grid>
+        ))}
       </Grid>
 
+      {/* ── Overall occupancy bar ── */}
+      <Paper elevation={0} sx={{ p: 3, mb: 4, border: '1px solid #e2e8f0', borderRadius: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+          <Typography variant="body2" fontWeight={600}>Overall Occupancy</Typography>
+          <Typography variant="body2" fontWeight={700} color={occupancyRate >= 80 ? 'error.main' : 'success.main'}>
+            {occupancyRate}%
+          </Typography>
+        </Box>
+        <LinearProgress
+          variant="determinate"
+          value={occupancyRate}
+          color={occupancyRate >= 90 ? 'error' : occupancyRate >= 60 ? 'warning' : 'success'}
+          sx={{ height: 10, borderRadius: 5 }}
+        />
+        <Stack direction="row" spacing={3} mt={1.5}>
+          <Typography variant="caption" color="text.secondary">
+            {statistics.occupiedRooms} occupied &nbsp;·&nbsp; {statistics.totalRooms - statistics.occupiedRooms} vacant
+          </Typography>
+        </Stack>
+      </Paper>
+
       <Grid container spacing={3}>
-        {/* Properties Overview */}
-        <Grid item xs={12} lg={6}>
-          <Card>
+        {/* ── Properties table ── */}
+        <Grid item xs={12} lg={7}>
+          <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3 }}>
             <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">My Properties</Typography>
-                <Button 
-                  startIcon={<Add />} 
-                  variant="outlined" 
-                  size="small"
-                  onClick={() => navigate('/branches')}
-                >
-                  Manage Properties
-                </Button>
-              </Box>
+              <SectionHeader
+                title="My Properties"
+                actionLabel="Manage Properties"
+                onAction={() => navigate('/branches')}
+              />
               <TableContainer>
                 <Table size="small">
                   <TableHead>
-                    <TableRow>
-                      <TableCell>Property Name</TableCell>
-                      <TableCell>Location</TableCell>
+                    <TableRow sx={{ '& th': { fontWeight: 700, color: 'text.secondary', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: '2px solid #e2e8f0' } }}>
+                      <TableCell>Property</TableCell>
+                      <TableCell>City</TableCell>
                       <TableCell align="center">Rooms</TableCell>
-                      <TableCell align="center">Occupied</TableCell>
-                      <TableCell align="center">Actions</TableCell>
+                      <TableCell>Occupancy</TableCell>
+                      <TableCell align="center"></TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {properties.map((property) => (
-                      <TableRow key={property.id}>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight="medium">
-                            {property.name}
-                          </Typography>
+                    {properties.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                          No properties found.{' '}
+                          <Button size="small" startIcon={<Add />} onClick={() => navigate('/branches')}>
+                            Add one
+                          </Button>
                         </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="textSecondary">
-                            {property.city}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="center">{property.num_rooms || property.total_rooms || 0}</TableCell>
-                        <TableCell align="center">
-                          <Box display="flex" alignItems="center" justifyContent="center">
-                            {property.occupied_rooms || 0}
-                            <Box ml={1} width={40}>
-                              <LinearProgress 
-                                variant="determinate" 
-                                value={(property.num_rooms || property.total_rooms) > 0 ? 
-                                  (property.occupied_rooms / (property.num_rooms || property.total_rooms)) * 100 : 0}
-                                size="small"
+                      </TableRow>
+                    ) : properties.map((p) => {
+                      const rooms = p.total_rooms || p.num_rooms || 0;
+                      const occ   = p.occupied_rooms || 0;
+                      const pct   = rooms > 0 ? Math.round((occ / rooms) * 100) : 0;
+                      return (
+                        <TableRow key={p.id} sx={{ '&:hover': { backgroundColor: '#f8fafc' } }}>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight={600}>{p.name}</Typography>
+                            <Typography variant="caption" color="text.secondary">{p.property_type_display}</Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" color="text.secondary">{p.city || '—'}</Typography>
+                          </TableCell>
+                          <TableCell align="center">
+                            <Chip label={rooms} size="small" sx={{ fontWeight: 600, minWidth: 36 }} />
+                          </TableCell>
+                          <TableCell sx={{ minWidth: 120 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <LinearProgress
+                                variant="determinate"
+                                value={pct}
+                                color={pct >= 90 ? 'error' : pct >= 60 ? 'warning' : 'success'}
+                                sx={{ flex: 1, height: 6, borderRadius: 3 }}
                               />
+                              <Typography variant="caption" fontWeight={600} color="text.secondary">
+                                {pct}%
+                              </Typography>
                             </Box>
-                          </Box>
-                        </TableCell>
-                        <TableCell align="center">
-                          <Tooltip title="View Details">
-                            <IconButton 
-                              size="small" 
-                              onClick={() => navigate(`/branches/${property.id}`)}
-                            >
-                              <Visibility />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell align="center">
+                            <Tooltip title="View details">
+                              <IconButton size="small" onClick={() => navigate('/branches')}>
+                                <Visibility fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -284,143 +301,46 @@ const OwnerDashboard = () => {
           </Card>
         </Grid>
 
-        {/* Recent Tenants */}
-        <Grid item xs={12} lg={6}>
-          <Card>
+        {/* ── Recent tenants ── */}
+        <Grid item xs={12} lg={5}>
+          <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3 }}>
             <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">Recent Tenants</Typography>
-                <Button 
-                  startIcon={<People />} 
-                  variant="outlined" 
-                  size="small"
-                  onClick={() => navigate('/tenants')}
-                >
-                  View All Tenants
-                </Button>
-              </Box>
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Tenant Name</TableCell>
-                      <TableCell>Room</TableCell>
-                      <TableCell>Property</TableCell>
-                      <TableCell align="right">Rent</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {tenants.map((tenant) => (
-                      <TableRow key={tenant.id}>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight="medium">
-                            {tenant.name}
-                          </Typography>
-                          <Typography variant="caption" color="textSecondary">
-                            {tenant.phone_number}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {tenant.room_name || 'N/A'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="textSecondary">
-                            {tenant.branch_name || 'N/A'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="body2" fontWeight="medium">
-                            ₹{tenant.rent_amount?.toLocaleString() || 0}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Recent Service Requests */}
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">Recent Service Requests</Typography>
-                <Button 
-                  startIcon={<Assessment />} 
-                  variant="outlined" 
-                  size="small"
-                  onClick={() => navigate('/tenant-requests')}
-                >
-                  View All Requests
-                </Button>
-              </Box>
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Request</TableCell>
-                      <TableCell>Tenant</TableCell>
-                      <TableCell>Property</TableCell>
-                      <TableCell>Type</TableCell>
-                      <TableCell>Priority</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Date</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {recentRequests.map((request) => (
-                      <TableRow key={request.id}>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight="medium">
-                            {request.title}
-                          </Typography>
-                          <Typography variant="caption" color="textSecondary">
-                            {request.description?.substring(0, 50)}...
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {request.tenant_name}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {request.branch_name}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip 
-                            label={request.request_type_display} 
-                            variant="outlined" 
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Chip 
-                            label={request.priority_display} 
-                            color={request.priority === 'urgent' ? 'error' : 
-                                  request.priority === 'high' ? 'warning' : 'default'} 
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {getStatusChip(request.status)}
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="textSecondary">
-                            {new Date(request.created_at).toLocaleDateString()}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              <SectionHeader
+                title="Recent Tenants"
+                actionLabel="View All"
+                onAction={() => navigate('/tenants')}
+              />
+              {tenants.length === 0 ? (
+                <Box sx={{ py: 4, textAlign: 'center', color: 'text.secondary' }}>
+                  <People sx={{ fontSize: 40, color: 'grey.300', mb: 1 }} />
+                  <Typography variant="body2">No tenants yet.</Typography>
+                </Box>
+              ) : (
+                <Stack spacing={1.5}>
+                  {tenants.map((t) => (
+                    <Box key={t.id} sx={{
+                      display: 'flex', alignItems: 'center', gap: 1.5,
+                      p: 1.5, borderRadius: 2, border: '1px solid #f1f5f9',
+                      '&:hover': { backgroundColor: '#f8fafc' }
+                    }}>
+                      <Avatar sx={{ width: 36, height: 36, fontSize: 13, fontWeight: 700, backgroundColor: '#3b82f6' }}>
+                        {(t.name || t.user?.first_name || 'T').slice(0, 1).toUpperCase()}
+                      </Avatar>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="body2" fontWeight={600} noWrap>
+                          {t.name || `${t.user?.first_name || ''} ${t.user?.last_name || ''}`.trim() || 'Tenant'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap>
+                          {t.room_display || t.branch_name || '—'}
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" fontWeight={700} color="success.main" sx={{ whiteSpace: 'nowrap' }}>
+                        ₹{Number(t.rent_amount || 0).toLocaleString('en-IN')}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -430,3 +350,5 @@ const OwnerDashboard = () => {
 };
 
 export default OwnerDashboard;
+
+

@@ -50,48 +50,35 @@ const TenantDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      
-      // Fetch tenant profile
-      const profileResponse = await api.get('/api/auth/profile/');
-      const tenantProfile = profileResponse.data;
+      const tenantsRes = await enhancedAPI.tenants.list();
+      const allTenants = tenantsRes.data.results || tenantsRes.data || [];
+      // Find the current user's tenant record
+      const myTenant = allTenants.find(t => t.user === user?.id || t.user?.id === user?.id) || null;
 
-      // Fetch tenant's service requests
-      const requestsResponse = await api.get('/api/tenant-requests/my/');
-      const serviceRequests = requestsResponse.data.results || requestsResponse.data;
+      let paymentsData = [];
+      try {
+        const paymentsRes = await enhancedAPI.payments.list();
+        paymentsData = paymentsRes.data.results || paymentsRes.data || [];
+      } catch (_) {
+        // Payments endpoint may not be available yet
+      }
 
-      // Fetch tenant's payments
-      const paymentsResponse = await api.get('/api/payments/my/');
-      const payments = paymentsResponse.data.results || paymentsResponse.data;
-
-      // Fetch room details
-      const roomResponse = await api.get('/api/tenants/my-room/');
-      const roomDetails = roomResponse.data;
-
-      // Calculate statistics
-      const totalRequests = serviceRequests.length;
-      const pendingRequests = serviceRequests.filter(req => 
-        req.status === 'open' || req.status === 'in_progress'
-      ).length;
-      const resolvedRequests = serviceRequests.filter(req => 
-        req.status === 'resolved' || req.status === 'closed'
-      ).length;
-      const totalPayments = payments.length;
-      const pendingPayments = payments.filter(pay => pay.status === 'pending').length;
-
+      const pendingPayments = paymentsData.filter(p => p.status === 'pending').length;
       setDashboardData({
-        tenantProfile,
-        recentPayments: payments.slice(0, 5),
-        serviceRequests: serviceRequests.slice(0, 10),
-        roomDetails,
+        tenantProfile: myTenant,
+        recentPayments: paymentsData.slice(0, 5),
+        serviceRequests: [],
+        roomDetails: myTenant
+          ? { room_number: myTenant.room_display, branch: myTenant.branch_name }
+          : null,
         statistics: {
-          totalRequests,
-          pendingRequests,
-          resolvedRequests,
-          totalPayments,
-          pendingPayments
+          totalRequests: 0,
+          pendingRequests: 0,
+          resolvedRequests: 0,
+          totalPayments: paymentsData.length,
+          pendingPayments,
         }
       });
-
       setError(null);
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
@@ -102,42 +89,22 @@ const TenantDashboard = () => {
   };
 
   const handleSubmitRequest = async () => {
-    try {
-      await api.post('/api/tenant-requests/', newRequest);
-      setOpenRequestDialog(false);
-      setNewRequest({
-        request_type: '',
-        title: '',
-        description: '',
-        priority: 'medium'
-      });
-      fetchDashboardData(); // Refresh data
-    } catch (err) {
-      console.error('Failed to submit request:', err);
-      setError('Failed to submit request');
-    }
+    // Service requests endpoint not yet available
+    setOpenRequestDialog(false);
+    setNewRequest({ request_type: '', title: '', description: '', priority: 'medium' });
   };
 
-  const StatCard = ({ title, value, icon, color = 'primary', subtitle, onClick }) => (
-    <Card sx={{ height: '100%', cursor: onClick ? 'pointer' : 'default' }} onClick={onClick}>
-      <CardContent>
-        <Box display="flex" alignItems="center" justifyContent="space-between">
+  const StatCard = ({ title, value, icon, gradient, subtitle }) => (
+    <Card elevation={0} sx={{ height: '100%', border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden', position: 'relative', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: 4 } }}>
+      <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: gradient }} />
+      <CardContent sx={{ pt: 2.5 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <Box>
-            <Typography color="textSecondary" gutterBottom variant="body2">
-              {title}
-            </Typography>
-            <Typography variant="h4" component="div" color={color}>
-              {value}
-            </Typography>
-            {subtitle && (
-              <Typography variant="body2" color="textSecondary">
-                {subtitle}
-              </Typography>
-            )}
+            <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.8 }}>{title}</Typography>
+            <Typography variant="h3" fontWeight={800} color="grey.900" sx={{ mt: 0.5, lineHeight: 1 }}>{value}</Typography>
+            {subtitle && <Typography variant="caption" color="text.secondary">{subtitle}</Typography>}
           </Box>
-          <Avatar sx={{ bgcolor: `${color}.main`, width: 56, height: 56 }}>
-            {icon}
-          </Avatar>
+          <Avatar sx={{ borderRadius: 2, background: gradient, width: 44, height: 44 }}>{icon}</Avatar>
         </Box>
       </CardContent>
     </Card>
@@ -174,18 +141,19 @@ const TenantDashboard = () => {
 
   if (loading) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Typography variant="h4" gutterBottom>Loading Dashboard...</Typography>
-        <LinearProgress />
+      <Box sx={{ p: 4 }}>
+        <LinearProgress sx={{ borderRadius: 2, mb: 2 }} />
+        <Typography color="text.secondary">Loading your dashboard…</Typography>
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">{error}</Alert>
-        <Button onClick={fetchDashboardData} sx={{ mt: 2 }}>Retry</Button>
+      <Box sx={{ p: 4 }}>
+        <Alert severity="error" sx={{ borderRadius: 2 }}
+          action={<Button size="small" onClick={fetchDashboardData}>Retry</Button>}
+        >{error}</Alert>
       </Box>
     );
   }
