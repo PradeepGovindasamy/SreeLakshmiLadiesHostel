@@ -210,6 +210,11 @@ function PropertyForm({ open, onClose, onSave, property = null, isEdit = false }
         delete submitData.owner;
       }
 
+      // Remove empty strings for date/integer fields to avoid backend validation errors
+      if (!submitData.established_date) delete submitData.established_date;
+      if (submitData.num_rooms === '' || submitData.num_rooms === null) delete submitData.num_rooms;
+      if (submitData.num_bathrooms === '' || submitData.num_bathrooms === null) delete submitData.num_bathrooms;
+
       console.log('Submitting property data:', submitData);
 
       if (isEdit) {
@@ -223,7 +228,25 @@ function PropertyForm({ open, onClose, onSave, property = null, isEdit = false }
     } catch (error) {
       console.error('Error saving property:', error);
       console.error('Error details:', error.response?.data);
-      setError(error.response?.data?.message || 'Failed to save property');
+      // DRF returns errors as {detail: '...'} or {field: ['error']} - show the real error
+      const errData = error.response?.data;
+      let errMsg = 'Failed to save property';
+      if (errData) {
+        if (typeof errData === 'string') {
+          errMsg = errData;
+        } else if (errData.detail) {
+          errMsg = errData.detail;
+        } else if (errData.message) {
+          errMsg = errData.message;
+        } else {
+          // Field-level errors: join them all
+          const fieldErrors = Object.entries(errData)
+            .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+            .join(' | ');
+          if (fieldErrors) errMsg = fieldErrors;
+        }
+      }
+      setError(errMsg);
     } finally {
       setLoading(false);
     }
