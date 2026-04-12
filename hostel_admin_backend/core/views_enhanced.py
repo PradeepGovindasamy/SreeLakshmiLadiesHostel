@@ -132,11 +132,37 @@ class EnhancedBranchViewSet(viewsets.ModelViewSet):
         # Set the current user as owner when creating a branch
         user = self.request.user
         if hasattr(user, 'profile') and user.profile.role in ['owner', 'admin']:
+            # Allow admins to assign a different owner via the request payload
+            if user.profile.role == 'admin':
+                owner_id = self.request.data.get('owner')
+                if owner_id:
+                    from django.contrib.auth.models import User as DjangoUser
+                    try:
+                        selected_owner = DjangoUser.objects.get(id=owner_id)
+                        serializer.save(owner=selected_owner)
+                        return
+                    except DjangoUser.DoesNotExist:
+                        pass
             serializer.save(owner=user)
         else:
             # If user is not owner/admin, they shouldn't be able to create
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("Only owners and admins can create branches")
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        # Allow admins to reassign the owner on edit
+        if hasattr(user, 'profile') and user.profile.role == 'admin':
+            owner_id = self.request.data.get('owner')
+            if owner_id:
+                from django.contrib.auth.models import User as DjangoUser
+                try:
+                    selected_owner = DjangoUser.objects.get(id=owner_id)
+                    serializer.save(owner=selected_owner)
+                    return
+                except DjangoUser.DoesNotExist:
+                    pass
+        serializer.save()
     
     @action(detail=True, methods=['get'])
     def rooms(self, request, pk=None):

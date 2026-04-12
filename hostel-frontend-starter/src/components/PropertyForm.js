@@ -205,8 +205,9 @@ function PropertyForm({ open, onClose, onSave, property = null, isEdit = false }
       // Create a copy of formData for submission
       const submitData = { ...formData };
       
-      // For new properties, don't send owner field - let backend set it automatically
-      if (!isEdit) {
+      // For new properties, only remove owner if the admin hasn't explicitly selected one.
+      // Non-admin users never have the owner dropdown, so it will always be empty for them.
+      if (!isEdit && !submitData.owner) {
         delete submitData.owner;
       }
 
