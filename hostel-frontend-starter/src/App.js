@@ -275,27 +275,6 @@ function App() {
 
 export default App;
 
-const drawerWidth = 240;
-
-function AppWrapper() {
-  const { user, isAuthenticated, logout, getUserRole, getUserName } = useUser();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [anchorEl, setAnchorEl] = React.useState(null);
-
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
-
-  const handleMenuClick = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
-
   const userRole = getUserRole();
 
   // Get navigation items based on user role
