@@ -38,7 +38,7 @@ const ROLE_COLORS = {
 };
 
 function AppWrapper() {
-  const { user, isAuthenticated, logout, getUserRole, getUserName } = useUser();
+  const { user, isAuthenticated, logout, getUserRole, getUserName, loading } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
   const [anchorEl, setAnchorEl] = React.useState(null);
@@ -53,7 +53,9 @@ function AppWrapper() {
     location.pathname === '/forgot-password' ||
     location.pathname === '/password-reset/confirm';
 
-  const showLayout = isAuthenticated() && !isPublicPage;
+  // During initial load, show layout optimistically if a token exists to avoid sidebar flash
+  const hasToken = !!localStorage.getItem('access');
+  const showLayout = (loading ? hasToken : isAuthenticated()) && !isPublicPage;
   const roleColor = ROLE_COLORS[userRole] || '#1d4ed8';
   const initials = getUserName()?.slice(0, 2).toUpperCase() || 'U';
 

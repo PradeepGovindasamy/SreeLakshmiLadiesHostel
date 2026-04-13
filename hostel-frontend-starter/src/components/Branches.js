@@ -25,7 +25,8 @@ import {
   Card,
   CardContent,
   CircularProgress,
-  Alert
+  Alert,
+  Avatar
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
