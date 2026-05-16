@@ -54,6 +54,8 @@ const WardenDashboard = () => {
       const totalRooms = rooms.length;
       const occupiedRooms = rooms.filter(r => (r.current_occupancy || 0) > 0).length;
       const monthlyCollection = activeTenants.reduce((s, t) => s + (parseFloat(t.rent_amount) || 0), 0);
+      // The /api/v2/branches/ endpoint already filters to assigned branches for wardens.
+      // Show the first assigned property (most wardens manage one branch).
       const assignedProperty = branches.length > 0 ? branches[0] : null;
 
       setDashboardData({

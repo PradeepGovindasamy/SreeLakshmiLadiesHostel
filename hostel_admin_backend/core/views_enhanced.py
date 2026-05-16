@@ -3,10 +3,12 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q, Count, F
-from .models import Branch, Room, Tenant, RoomOccupancy, RentPayment, UserProfile
+from django.contrib.auth.models import User
+from .models import Branch, Room, Tenant, RoomOccupancy, RentPayment, UserProfile, WardenAssignment
 from .serializers import (
     BranchSerializer, RoomSerializer, TenantSerializer,
-    RoomOccupancySerializer, RentPaymentSerializer, UserProfileSerializer
+    RoomOccupancySerializer, RentPaymentSerializer, UserProfileSerializer,
+    WardenAssignmentSerializer
 )
 
 
@@ -18,76 +20,126 @@ class RoleBasedPermission(permissions.BasePermission):
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
-        
-        # Check if user has a profile, create one if they don't
+
         if not hasattr(request.user, 'profile'):
-            # Try to create a profile for the user if they don't have one
             try:
-                from .models import UserProfile
-                profile, created = UserProfile.objects.get_or_create(
+                UserProfile.objects.get_or_create(
                     user=request.user,
-                    defaults={'role': 'owner'}  # Default role for new users
+                    defaults={'role': 'tenant'}  # safe default — never auto-grant owner
                 )
-                if created:
-                    print(f"Created profile for user {request.user.username} with role {profile.role}")
-            except Exception as e:
-                print(f"Error creating profile for user {request.user.username}: {e}")
+            except Exception:
                 return False
-        
-        # For creation (POST), check specific permissions
+
         if request.method == 'POST':
             user_role = request.user.profile.role
-            
-            # Only owners and admins can create branches
+
             if view.__class__.__name__ == 'EnhancedBranchViewSet':
                 return user_role in ['owner', 'admin']
-            
-            # Owners and wardens can create rooms and tenants
-            elif view.__class__.__name__ in ['EnhancedRoomViewSet', 'EnhancedTenantViewSet']:
-                return user_role in ['owner', 'warden', 'admin']
-        
+
+            if view.__class__.__name__ in ['EnhancedRoomViewSet', 'EnhancedTenantViewSet']:
+                if user_role == 'warden':
+                    # enforce can_manage_rooms / can_manage_tenants flag
+                    perm_field = (
+                        'can_manage_rooms'
+                        if view.__class__.__name__ == 'EnhancedRoomViewSet'
+                        else 'can_manage_tenants'
+                    )
+                    branch_id = (
+                        request.data.get('branch')
+                        or request.query_params.get('branch')
+                    )
+                    if not branch_id:
+                        return False
+                    return WardenAssignment.objects.filter(
+                        warden=request.user,
+                        branch_id=branch_id,
+                        is_active=True,
+                        **{perm_field: True}
+                    ).exists()
+                return user_role in ['owner', 'admin']
+
+            if view.__class__.__name__ == 'EnhancedRentPaymentViewSet':
+                if user_role == 'warden':
+                    tenant_id = request.data.get('tenant')
+                    if not tenant_id:
+                        return False
+                    return WardenAssignment.objects.filter(
+                        warden=request.user,
+                        branch__rooms__tenants__id=tenant_id,
+                        is_active=True,
+                        can_collect_payments=True
+                    ).exists()
+                return user_role in ['owner', 'admin']
+
         return True
-    
+
     def has_object_permission(self, request, view, obj):
         user = request.user
-        
-        # Ensure user has a profile
+
         if not hasattr(user, 'profile') or not user.profile:
             return False
-            
+
         user_role = user.profile.role
-        
-        # Owners and admins have full access
-        if user_role in ['owner', 'admin']:
+
+        if user_role == 'admin':
             return True
-        
-        # For other roles, implement specific logic per model
+
         if isinstance(obj, Branch):
-            # Owners can access their own branches
-            if user_role == 'owner' and hasattr(obj, 'owner') and obj.owner == user:
-                return True
-            # Wardens can access branches they're assigned to
+            if user_role == 'owner':
+                return obj.owner == user
             if user_role == 'warden':
-                from .models import WardenAssignment
                 return WardenAssignment.objects.filter(
                     warden=user, branch=obj, is_active=True
                 ).exists()
-            # Tenants can view branches but not modify
-            elif user_role == 'tenant':
+            if user_role == 'tenant':
                 return request.method in permissions.SAFE_METHODS
-        
+
         elif isinstance(obj, Room):
-            # Check branch access first
-            return self.has_object_permission(request, view, obj.branch)
-        
+            if user_role == 'owner':
+                return obj.branch.owner == user
+            if user_role == 'warden':
+                if request.method not in permissions.SAFE_METHODS:
+                    return WardenAssignment.objects.filter(
+                        warden=user, branch=obj.branch,
+                        is_active=True, can_manage_rooms=True
+                    ).exists()
+                return WardenAssignment.objects.filter(
+                    warden=user, branch=obj.branch, is_active=True
+                ).exists()
+
         elif isinstance(obj, Tenant):
-            # Users can access their own tenant record
             if obj.user == user:
                 return True
-            # Or if they have access to the branch
-            if obj.room:
-                return self.has_object_permission(request, view, obj.room.branch)
-        
+            if not obj.room:
+                return False
+            branch = obj.room.branch
+            if user_role == 'owner':
+                return branch.owner == user
+            if user_role == 'warden':
+                if request.method not in permissions.SAFE_METHODS:
+                    return WardenAssignment.objects.filter(
+                        warden=user, branch=branch,
+                        is_active=True, can_manage_tenants=True
+                    ).exists()
+                return WardenAssignment.objects.filter(
+                    warden=user, branch=branch, is_active=True
+                ).exists()
+
+        elif isinstance(obj, RentPayment):
+            if not obj.tenant or not obj.tenant.room:
+                return False
+            branch = obj.tenant.room.branch
+            if user_role == 'owner':
+                return branch.owner == user
+            if user_role == 'warden':
+                perm_field = 'can_collect_payments' if request.method not in permissions.SAFE_METHODS else 'can_view_payments'
+                return WardenAssignment.objects.filter(
+                    warden=user, branch=branch,
+                    is_active=True, **{perm_field: True}
+                ).exists()
+            if user_role == 'tenant':
+                return obj.tenant.user == user and request.method in permissions.SAFE_METHODS
+
         return False
 
 
@@ -164,6 +216,131 @@ class EnhancedBranchViewSet(viewsets.ModelViewSet):
                     pass
         serializer.save()
     
+    # ── Manager / Warden assignment actions ──────────────────────────────
+
+    @action(detail=True, methods=['post'], url_path='assign_manager')
+    def assign_manager(self, request, pk=None):
+        """
+        Assign or update a manager/warden for this branch.
+        Only owner of the branch or admin may call this.
+        POST /api/v2/branches/{id}/assign_manager/
+        Body: { warden_id, can_manage_rooms, can_manage_tenants,
+                can_view_payments, can_collect_payments }
+        """
+        branch = self.get_object()
+        user = request.user
+        user_role = getattr(user, 'profile', None) and user.profile.role
+
+        if user_role not in ['owner', 'admin']:
+            return Response({'error': 'Only owners and admins can assign managers'},
+                            status=status.HTTP_403_FORBIDDEN)
+        if user_role == 'owner' and branch.owner != user:
+            return Response({'error': 'You do not own this branch'},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        warden_id = request.data.get('warden_id')
+        if not warden_id:
+            return Response({'error': 'warden_id is required'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            warden_user = User.objects.get(id=warden_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not hasattr(warden_user, 'profile') or warden_user.profile.role != 'warden':
+            return Response({'error': 'Selected user does not have the warden role'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        assignment, created = WardenAssignment.objects.get_or_create(
+            warden=warden_user,
+            branch=branch,
+            defaults={'assigned_by': user}
+        )
+        assignment.is_active = True
+        assignment.assigned_by = user
+        assignment.can_manage_rooms = request.data.get('can_manage_rooms', assignment.can_manage_rooms)
+        assignment.can_manage_tenants = request.data.get('can_manage_tenants', assignment.can_manage_tenants)
+        assignment.can_view_payments = request.data.get('can_view_payments', assignment.can_view_payments)
+        assignment.can_collect_payments = request.data.get('can_collect_payments', assignment.can_collect_payments)
+        assignment.save()
+
+        serializer = WardenAssignmentSerializer(assignment)
+        return Response(serializer.data,
+                        status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='managers')
+    def list_managers(self, request, pk=None):
+        """
+        List all active managers assigned to this branch.
+        GET /api/v2/branches/{id}/managers/
+        """
+        branch = self.get_object()
+        assignments = WardenAssignment.objects.filter(
+            branch=branch, is_active=True
+        ).select_related('warden', 'warden__profile', 'assigned_by')
+        serializer = WardenAssignmentSerializer(assignments, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['patch'], url_path='managers/(?P<assignment_id>[^/.]+)/permissions')
+    def update_manager_permissions(self, request, pk=None, assignment_id=None):
+        """
+        Update permission flags for a specific manager assignment.
+        PATCH /api/v2/branches/{id}/managers/{assignment_id}/permissions/
+        Body: { can_manage_rooms, can_manage_tenants, can_view_payments, can_collect_payments }
+        """
+        branch = self.get_object()
+        user = request.user
+        user_role = getattr(getattr(user, 'profile', None), 'role', None)
+
+        if user_role not in ['owner', 'admin']:
+            return Response({'error': 'Only owners and admins can update manager permissions'},
+                            status=status.HTTP_403_FORBIDDEN)
+        if user_role == 'owner' and branch.owner != user:
+            return Response({'error': 'You do not own this branch'},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            assignment = WardenAssignment.objects.get(id=assignment_id, branch=branch)
+        except WardenAssignment.DoesNotExist:
+            return Response({'error': 'Assignment not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        for field in ['can_manage_rooms', 'can_manage_tenants', 'can_view_payments', 'can_collect_payments']:
+            if field in request.data:
+                setattr(assignment, field, request.data[field])
+        assignment.save()
+
+        serializer = WardenAssignmentSerializer(assignment)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['delete'], url_path='managers/(?P<assignment_id>[^/.]+)')
+    def remove_manager(self, request, pk=None, assignment_id=None):
+        """
+        Deactivate (soft-remove) a manager assignment.
+        DELETE /api/v2/branches/{id}/managers/{assignment_id}/
+        """
+        branch = self.get_object()
+        user = request.user
+        user_role = getattr(getattr(user, 'profile', None), 'role', None)
+
+        if user_role not in ['owner', 'admin']:
+            return Response({'error': 'Only owners and admins can remove managers'},
+                            status=status.HTTP_403_FORBIDDEN)
+        if user_role == 'owner' and branch.owner != user:
+            return Response({'error': 'You do not own this branch'},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            assignment = WardenAssignment.objects.get(id=assignment_id, branch=branch)
+        except WardenAssignment.DoesNotExist:
+            return Response({'error': 'Assignment not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        assignment.is_active = False
+        assignment.save()
+        return Response({'message': 'Manager removed from branch'}, status=status.HTTP_200_OK)
+
+    # ── Existing branch detail actions ────────────────────────────────────
+
     @action(detail=True, methods=['get'])
     def rooms(self, request, pk=None):
         """Get all rooms for a branch"""
@@ -224,12 +401,9 @@ class EnhancedRoomViewSet(viewsets.ModelViewSet):
         
         user_role = user.profile.role
         
-        # Base queryset based on role
-        # Owners and admins see all rooms
-        if user_role in ['owner', 'admin']:
+        if user_role == 'admin':
             queryset = Room.objects.all().select_related('branch')
-        
-        # Owners see rooms in their branches
+
         elif user_role == 'owner':
             queryset = Room.objects.filter(branch__owner=user).select_related('branch')
         
@@ -321,11 +495,9 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
         
         user_role = user.profile.role
         
-        # Owners and admins see all tenants
-        if user_role in ['owner', 'admin']:
+        if user_role == 'admin':
             return Tenant.objects.all().select_related('user', 'room', 'room__branch')
-        
-        # Owners see tenants in their branches
+
         elif user_role == 'owner':
             return Tenant.objects.filter(
                 room__branch__owner=user
@@ -445,11 +617,9 @@ class EnhancedRoomOccupancyViewSet(viewsets.ModelViewSet):
         
         user_role = user.profile.role
         
-        # Owners and admins see all occupancy records
-        if user_role in ['owner', 'admin']:
+        if user_role == 'admin':
             return RoomOccupancy.objects.all().select_related('room', 'tenant', 'room__branch')
-        
-        # Owners see occupancy in their branches
+
         elif user_role == 'owner':
             return RoomOccupancy.objects.filter(
                 room__branch__owner=user
@@ -492,21 +662,17 @@ class EnhancedRentPaymentViewSet(viewsets.ModelViewSet):
         
         user_role = user.profile.role
         
-        # Owners and admins see all payments
-        if user_role in ['owner', 'admin']:
+        if user_role == 'admin':
             return RentPayment.objects.all().select_related('tenant', 'tenant__room', 'tenant__room__branch')
-        
-        # Owners see payments for their branches
+
         elif user_role == 'owner':
             return RentPayment.objects.filter(
                 tenant__room__branch__owner=user
             ).select_related('tenant', 'tenant__room', 'tenant__room__branch')
-        
-        # Wardens see payments in assigned branches
+
         elif user_role == 'warden':
-            from .models import WardenAssignment
             assigned_branches = WardenAssignment.objects.filter(
-                warden=user, is_active=True
+                warden=user, is_active=True, can_view_payments=True
             ).values_list('branch', flat=True)
             return RentPayment.objects.filter(
                 tenant__room__branch__in=assigned_branches

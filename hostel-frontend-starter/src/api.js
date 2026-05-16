@@ -213,12 +213,30 @@ export const enhancedAPI = {
   },
 };
 
-// Legacy API (for backward compatibility)
-export const legacyAPI = {
-  branches: () => api.get('/api/branches/'),
-  rooms: () => api.get('/api/rooms/'),
-  tenants: () => api.get('/api/tenants/'),
-  payments: () => api.get('/api/payments/'),
+// Manager / Warden assignment API (active /api/v2/ endpoints)
+export const managerAPI = {
+  // Assign or update a manager for a branch
+  // POST /api/v2/branches/{id}/assign_manager/
+  assign: (branchId, data) =>
+    api.post(`/api/v2/branches/${branchId}/assign_manager/`, data),
+
+  // List active managers for a branch
+  // GET /api/v2/branches/{id}/managers/
+  list: (branchId) =>
+    api.get(`/api/v2/branches/${branchId}/managers/`),
+
+  // Update permission flags for an assignment
+  // PATCH /api/v2/branches/{id}/managers/{assignmentId}/permissions/
+  updatePermissions: (branchId, assignmentId, permissions) =>
+    api.patch(
+      `/api/v2/branches/${branchId}/managers/${assignmentId}/permissions/`,
+      permissions
+    ),
+
+  // Soft-remove a manager from a branch
+  // DELETE /api/v2/branches/{id}/managers/{assignmentId}/
+  remove: (branchId, assignmentId) =>
+    api.delete(`/api/v2/branches/${branchId}/managers/${assignmentId}/`),
 };
 
 export default api;

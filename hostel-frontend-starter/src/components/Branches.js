@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { enhancedAPI } from '../api';
+import { enhancedAPI, managerAPI, userAPI } from '../api';
 import { useUser } from '../contexts/UserContext';
 import PropertyForm from './PropertyForm';
 import {
@@ -26,7 +26,18 @@ import {
   CardContent,
   CircularProgress,
   Alert,
-  Avatar
+  Avatar,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  FormControlLabel,
+  Checkbox,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -34,7 +45,9 @@ import {
   Visibility as ViewIcon,
   Add as AddIcon,
   Home as HomeIcon,
-  People as PeopleIcon
+  People as PeopleIcon,
+  PersonAdd as AssignIcon,
+  PersonRemove as RemoveIcon,
 } from '@mui/icons-material';
 
 function Branches() {
@@ -48,7 +61,22 @@ function Branches() {
   const [branchStats, setBranchStats] = useState(null);
   const [propertyFormOpen, setPropertyFormOpen] = useState(false);
   const [editingProperty, setEditingProperty] = useState(null);
-  
+
+  // Manager assignment state
+  const [managerDialog, setManagerDialog] = useState(false);
+  const [managerBranch, setManagerBranch] = useState(null);
+  const [currentManagers, setCurrentManagers] = useState([]);
+  const [availableWardens, setAvailableWardens] = useState([]);
+  const [managerForm, setManagerForm] = useState({
+    warden_id: '',
+    can_manage_rooms: true,
+    can_manage_tenants: true,
+    can_view_payments: true,
+    can_collect_payments: false,
+  });
+  const [managerLoading, setManagerLoading] = useState(false);
+  const [managerError, setManagerError] = useState(null);
+
   const { getUserRole, hasAnyRole } = useUser();
   const userRole = getUserRole();
 
@@ -111,9 +139,70 @@ function Branches() {
   };
 
   const handlePropertyFormSave = () => {
-    fetchBranches(); // Refresh the list
+    fetchBranches();
     setPropertyFormOpen(false);
     setEditingProperty(null);
+  };
+
+  const handleOpenManagerDialog = async (branch) => {
+    setManagerBranch(branch);
+    setManagerError(null);
+    setManagerLoading(true);
+    setManagerDialog(true);
+    try {
+      const [managersRes, usersRes] = await Promise.all([
+        managerAPI.list(branch.id),
+        userAPI.listUsers({ role: 'warden' }),
+      ]);
+      setCurrentManagers(managersRes.data || []);
+      const wardens = Array.isArray(usersRes.data)
+        ? usersRes.data
+        : usersRes.data.results || [];
+      setAvailableWardens(wardens);
+    } catch (err) {
+      setManagerError('Failed to load manager data.');
+    } finally {
+      setManagerLoading(false);
+    }
+  };
+
+  const handleAssignManager = async () => {
+    if (!managerForm.warden_id) {
+      setManagerError('Please select a manager.');
+      return;
+    }
+    setManagerLoading(true);
+    setManagerError(null);
+    try {
+      await managerAPI.assign(managerBranch.id, managerForm);
+      const res = await managerAPI.list(managerBranch.id);
+      setCurrentManagers(res.data || []);
+      setManagerForm({
+        warden_id: '',
+        can_manage_rooms: true,
+        can_manage_tenants: true,
+        can_view_payments: true,
+        can_collect_payments: false,
+      });
+    } catch (err) {
+      setManagerError(err.response?.data?.error || 'Failed to assign manager.');
+    } finally {
+      setManagerLoading(false);
+    }
+  };
+
+  const handleRemoveManager = async (assignmentId) => {
+    if (!window.confirm('Remove this manager from the branch?')) return;
+    setManagerLoading(true);
+    try {
+      await managerAPI.remove(managerBranch.id, assignmentId);
+      const res = await managerAPI.list(managerBranch.id);
+      setCurrentManagers(res.data || []);
+    } catch (err) {
+      setManagerError('Failed to remove manager.');
+    } finally {
+      setManagerLoading(false);
+    }
   };
 
   const canEdit = hasAnyRole(['owner', 'admin']);
@@ -266,32 +355,27 @@ function Branches() {
                     </TableCell>
                     <TableCell>
                       <Tooltip title="View Statistics">
-                        <IconButton 
-                          color="info" 
-                          size="small"
-                          onClick={() => handleViewStats(branch)}
-                        >
+                        <IconButton color="info" size="small" onClick={() => handleViewStats(branch)}>
                           <ViewIcon />
                         </IconButton>
                       </Tooltip>
                       {canEdit && (
-                        <Tooltip title="Edit">
-                          <IconButton 
-                            color="primary" 
-                            size="small"
-                            onClick={() => handleEdit(branch)}
-                          >
-                            <EditIcon />
-                          </IconButton>
-                        </Tooltip>
+                        <>
+                          <Tooltip title="Assign Manager">
+                            <IconButton color="secondary" size="small" onClick={() => handleOpenManagerDialog(branch)}>
+                              <AssignIcon />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Edit">
+                            <IconButton color="primary" size="small" onClick={() => handleEdit(branch)}>
+                              <EditIcon />
+                            </IconButton>
+                          </Tooltip>
+                        </>
                       )}
                       {canDelete && (
                         <Tooltip title="Delete">
-                          <IconButton 
-                            color="error" 
-                            size="small"
-                            onClick={() => handleDelete(branch)}
-                          >
+                          <IconButton color="error" size="small" onClick={() => handleDelete(branch)}>
                             <DeleteIcon />
                           </IconButton>
                         </Tooltip>
@@ -381,6 +465,109 @@ function Branches() {
         property={editingProperty}
         isEdit={Boolean(editingProperty)}
       />
+
+      {/* Manager Assignment Dialog */}
+      <Dialog open={managerDialog} onClose={() => setManagerDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Manage Assigned Managers — {managerBranch?.name}
+        </DialogTitle>
+        <DialogContent dividers>
+          {managerError && <Alert severity="error" sx={{ mb: 2 }}>{managerError}</Alert>}
+
+          {/* Current managers list */}
+          <Typography variant="subtitle2" gutterBottom>Current Managers</Typography>
+          {managerLoading ? (
+            <CircularProgress size={24} />
+          ) : currentManagers.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              No managers assigned yet.
+            </Typography>
+          ) : (
+            <List dense sx={{ mb: 2, border: '1px solid #e2e8f0', borderRadius: 2 }}>
+              {currentManagers.map((a) => (
+                <ListItem key={a.id} divider>
+                  <ListItemText
+                    primary={a.warden_name || a.warden?.username}
+                    secondary={[
+                      a.can_manage_rooms && 'Rooms',
+                      a.can_manage_tenants && 'Tenants',
+                      a.can_view_payments && 'View Payments',
+                      a.can_collect_payments && 'Collect Payments',
+                    ].filter(Boolean).join(' · ')}
+                  />
+                  <ListItemSecondaryAction>
+                    <Tooltip title="Remove">
+                      <IconButton size="small" color="error" onClick={() => handleRemoveManager(a.id)}>
+                        <RemoveIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </ListItemSecondaryAction>
+                </ListItem>
+              ))}
+            </List>
+          )}
+
+          <Divider sx={{ my: 2 }} />
+
+          {/* Assign new manager */}
+          <Typography variant="subtitle2" gutterBottom>Assign New Manager</Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Select Manager (Warden)</InputLabel>
+                <Select
+                  value={managerForm.warden_id}
+                  label="Select Manager (Warden)"
+                  onChange={(e) => setManagerForm({ ...managerForm, warden_id: e.target.value })}
+                >
+                  {availableWardens.map((w) => (
+                    <MenuItem key={w.id} value={w.id}>
+                      {w.first_name || w.last_name
+                        ? `${w.first_name} ${w.last_name}`.trim()
+                        : w.username}{' '}
+                      ({w.email})
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              <Typography variant="caption" color="text.secondary">Permissions</Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
+                {[
+                  { field: 'can_manage_rooms', label: 'Manage Rooms' },
+                  { field: 'can_manage_tenants', label: 'Manage Tenants' },
+                  { field: 'can_view_payments', label: 'View Payments' },
+                  { field: 'can_collect_payments', label: 'Collect Payments' },
+                ].map(({ field, label }) => (
+                  <FormControlLabel
+                    key={field}
+                    control={
+                      <Checkbox
+                        size="small"
+                        checked={managerForm[field]}
+                        onChange={(e) => setManagerForm({ ...managerForm, [field]: e.target.checked })}
+                      />
+                    }
+                    label={label}
+                  />
+                ))}
+              </Box>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setManagerDialog(false)}>Close</Button>
+          <Button
+            variant="contained"
+            onClick={handleAssignManager}
+            disabled={managerLoading || !managerForm.warden_id}
+            startIcon={managerLoading ? <CircularProgress size={16} /> : <AssignIcon />}
+          >
+            Assign Manager
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

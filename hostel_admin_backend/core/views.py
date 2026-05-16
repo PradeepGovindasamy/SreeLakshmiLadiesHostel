@@ -1,4 +1,5 @@
 from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
 from .models import Branch, Room, Tenant, RoomOccupancy, RentPayment
 from .serializers import (
     BranchSerializer, RoomSerializer,
@@ -6,23 +7,31 @@ from .serializers import (
     RentPaymentSerializer
 )
 
+# Legacy ViewSets kept for URL backward-compatibility only.
+# All active traffic uses /api/v2/* (views_enhanced.py).
+# These return empty querysets to prevent data leakage.
+
 class BranchViewSet(viewsets.ModelViewSet):
-    queryset = Branch.objects.all()
+    permission_classes = [IsAuthenticated]
+    queryset = Branch.objects.none()
     serializer_class = BranchSerializer
 
 class RoomViewSet(viewsets.ModelViewSet):
-    queryset = Room.objects.all()
+    permission_classes = [IsAuthenticated]
+    queryset = Room.objects.none()
     serializer_class = RoomSerializer
-    
 
 class TenantViewSet(viewsets.ModelViewSet):
-    queryset = Tenant.objects.all()
+    permission_classes = [IsAuthenticated]
+    queryset = Tenant.objects.none()
     serializer_class = TenantSerializer
 
 class RoomOccupancyViewSet(viewsets.ModelViewSet):
-    queryset = RoomOccupancy.objects.all()
+    permission_classes = [IsAuthenticated]
+    queryset = RoomOccupancy.objects.none()
     serializer_class = RoomOccupancySerializer
 
 class RentPaymentViewSet(viewsets.ModelViewSet):
-    queryset = RentPayment.objects.all()
+    permission_classes = [IsAuthenticated]
+    queryset = RentPayment.objects.none()
     serializer_class = RentPaymentSerializer
