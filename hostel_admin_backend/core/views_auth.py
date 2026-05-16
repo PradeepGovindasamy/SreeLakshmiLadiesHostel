@@ -442,6 +442,50 @@ class UserManagementViewSet(viewsets.ModelViewSet):
                 'error': f'An error occurred while creating the user: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+    def update(self, request, *args, **kwargs):
+        """
+        Update user — handles optional password change.
+        Only admin/owner can change another user's password.
+        """
+        caller = request.user
+        caller_role = getattr(getattr(caller, 'profile', None), 'role', None)
+
+        target_user = self.get_object()
+
+        # Only admin or owner may update other users
+        if caller.id != target_user.id and caller_role not in ['admin', 'owner']:
+            return Response({'error': 'You do not have permission to edit this user.'},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        # Handle password separately — set_password hashes it properly
+        new_password = request.data.get('password', '').strip()
+        if new_password:
+            if len(new_password) < 8:
+                return Response({'error': 'Password must be at least 8 characters.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            target_user.set_password(new_password)
+            target_user.save(update_fields=['password'])
+
+        # Update profile role if provided (admin only for privilege changes)
+        new_role = request.data.get('role')
+        if new_role and hasattr(target_user, 'profile'):
+            if new_role in ['admin', 'owner'] and caller_role != 'admin':
+                return Response({'error': 'Only admin can assign admin/owner roles.'},
+                                status=status.HTTP_403_FORBIDDEN)
+            target_user.profile.role = new_role
+            if request.data.get('phone_number'):
+                target_user.profile.phone_number = request.data.get('phone_number')
+            target_user.profile.save()
+
+        # Update basic user fields
+        for field in ['first_name', 'last_name', 'email', 'is_active']:
+            if field in request.data:
+                setattr(target_user, field, request.data[field])
+        target_user.save()
+
+        serializer = self.get_serializer(target_user)
+        return Response(serializer.data)
+
     @action(detail=True, methods=['patch'])
     def update_profile(self, request, pk=None):
         """Update user profile"""
