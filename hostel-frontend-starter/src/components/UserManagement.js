@@ -259,6 +259,7 @@ function UserManagement() {
         phone_number: formData.phone,
         business_name: formData.business_name || '',
         business_license: formData.business_license || '',
+        assigned_branches: formData.assigned_branches || [],
       };
 
       // Only include password if provided

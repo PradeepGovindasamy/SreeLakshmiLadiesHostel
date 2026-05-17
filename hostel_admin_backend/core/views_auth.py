@@ -483,6 +483,29 @@ class UserManagementViewSet(viewsets.ModelViewSet):
                 setattr(target_user, field, request.data[field])
         target_user.save()
 
+        # Update warden branch assignments if provided
+        assigned_branch_ids = request.data.get('assigned_branches')
+        if assigned_branch_ids is not None and hasattr(target_user, 'profile') and target_user.profile.role == 'warden':
+            from .models import WardenAssignment
+            from django.utils import timezone
+            # Deactivate all existing assignments
+            WardenAssignment.objects.filter(warden=target_user).update(is_active=False)
+            # Create or reactivate assignments for the selected branches
+            for branch_id in assigned_branch_ids:
+                try:
+                    branch = Branch.objects.get(id=branch_id)
+                    WardenAssignment.objects.update_or_create(
+                        warden=target_user,
+                        branch=branch,
+                        defaults={
+                            'assigned_by': caller,
+                            'assigned_date': timezone.now(),
+                            'is_active': True,
+                        }
+                    )
+                except Branch.DoesNotExist:
+                    pass
+
         serializer = self.get_serializer(target_user)
         return Response(serializer.data)
 

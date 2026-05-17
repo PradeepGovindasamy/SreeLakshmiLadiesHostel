@@ -55,13 +55,20 @@ class UserWithProfileSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source='profile.get_role_display', read_only=True)
     phone_number = serializers.CharField(source='profile.phone_number', read_only=True)
     is_profile_active = serializers.BooleanField(source='profile.is_active', read_only=True)
-    
+    assigned_branches = serializers.SerializerMethodField()
+
+    def get_assigned_branches(self, obj):
+        return list(
+            WardenAssignment.objects.filter(warden=obj, is_active=True)
+            .values_list('branch_id', flat=True)
+        )
+
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name', 'is_active', 
             'date_joined', 'last_login', 'profile', 'role', 'role_display', 
-            'phone_number', 'is_profile_active'
+            'phone_number', 'is_profile_active', 'assigned_branches'
         ]
         read_only_fields = ['id', 'date_joined', 'last_login']
 
