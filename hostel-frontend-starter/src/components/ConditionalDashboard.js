@@ -1,13 +1,13 @@
 // src/components/ConditionalDashboard.js
 import React from 'react';
-import { Box, Alert, CircularProgress, Typography, Paper } from '@mui/material';
+import { Box, Alert, CircularProgress, Typography, Button } from '@mui/material';
 import { useUser } from '../contexts/UserContext';
 import OwnerDashboard from './dashboards/OwnerDashboard';
 import WardenDashboard from './dashboards/WardenDashboard';
 import TenantDashboard from './dashboards/TenantDashboard';
 
 const ConditionalDashboard = () => {
-  const { user, profile, loading, error, getUserRole } = useUser();
+  const { user, profile, loading, error, getUserRole, refreshProfile } = useUser();
 
   if (loading) {
     return (
@@ -24,10 +24,26 @@ const ConditionalDashboard = () => {
 
   if (error) {
     return (
-      <Box sx={{ p: 4 }}>
-        <Alert severity="error" sx={{ borderRadius: 2 }}>
-          Failed to load dashboard: {error}
+      <Box sx={{ p: 4, maxWidth: 520 }}>
+        <Alert severity="error" sx={{ borderRadius: 2, mb: 2 }}>
+          {error}
         </Alert>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <Button variant="contained" onClick={refreshProfile}>
+            Retry
+          </Button>
+          <Button
+            variant="outlined"
+            color="error"
+            onClick={() => {
+              localStorage.removeItem('access');
+              localStorage.removeItem('refresh');
+              window.location.href = '/login';
+            }}
+          >
+            Log in again
+          </Button>
+        </Box>
       </Box>
     );
   }

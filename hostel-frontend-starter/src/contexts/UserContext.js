@@ -37,15 +37,25 @@ export const UserProvider = ({ children }) => {
       setError(null);
     } catch (err) {
       console.error('Failed to fetch user profile:', err);
-      setError('Failed to fetch user profile');
-      
-      // If token is invalid, clear it
-      if (err.response?.status === 401) {
+
+      const status = err.response?.status;
+
+      // Auth failure (401) or no response at all after a retry — force re-login
+      if (status === 401 || status === 403) {
         localStorage.removeItem('access');
         localStorage.removeItem('refresh');
         setUser(null);
         setProfile(null);
+        window.location.href = '/login';
+        return;
       }
+
+      // Server error or network problem — show a friendly message with retry option
+      setError(
+        status
+          ? `Server error (${status}). Please try again or log in again.`
+          : 'Could not reach the server. Please check your connection and try again.'
+      );
     } finally {
       setLoading(false);
     }
