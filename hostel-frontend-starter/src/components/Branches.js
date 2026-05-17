@@ -287,6 +287,7 @@ function Branches() {
                 <TableCell>Property Name</TableCell>
                 <TableCell>Address</TableCell>
                 <TableCell>Owner</TableCell>
+                <TableCell>Warden(s)</TableCell>
                 <TableCell>Rooms</TableCell>
                 <TableCell>Occupancy</TableCell>
                 <TableCell>Contact</TableCell>
@@ -313,6 +314,23 @@ function Branches() {
                        (branch.owner && (branch.owner.first_name + ' ' + branch.owner.last_name).trim()) ||
                        (branch.owner && branch.owner.username) ||
                        'Not Assigned'}
+                    </TableCell>
+                    <TableCell>
+                      {branch.wardens && branch.wardens.length > 0 ? (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {branch.wardens.map((w) => (
+                            <Chip
+                              key={w.id}
+                              label={w.name}
+                              size="small"
+                              color="warning"
+                              variant="outlined"
+                            />
+                          ))}
+                        </Box>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">Not Assigned</Typography>
+                      )}
                     </TableCell>
                     <TableCell>
                       {branch.num_rooms || branch.total_rooms || 0}
@@ -411,6 +429,30 @@ function Branches() {
           Property Statistics - {selectedBranch?.name}
         </DialogTitle>
         <DialogContent>
+          {selectedBranch && (
+            <Box mb={2} sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Owner</Typography>
+                <Typography variant="body2" fontWeight={600}>
+                  {selectedBranch.owner_name ||
+                    (selectedBranch.owner && (selectedBranch.owner.first_name + ' ' + selectedBranch.owner.last_name).trim()) ||
+                    (selectedBranch.owner && selectedBranch.owner.username) ||
+                    'Not Assigned'}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Warden(s)</Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+                  {selectedBranch.wardens && selectedBranch.wardens.length > 0
+                    ? selectedBranch.wardens.map((w) => (
+                        <Chip key={w.id} label={w.name} size="small" color="warning" variant="outlined" />
+                      ))
+                    : <Typography variant="body2" color="text.secondary">Not Assigned</Typography>
+                  }
+                </Box>
+              </Box>
+            </Box>
+          )}
           {branchStats && (
             <Grid container spacing={2}>
               <Grid item xs={6}>

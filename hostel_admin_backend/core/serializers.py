@@ -77,6 +77,7 @@ class BranchSerializer(serializers.ModelSerializer):
     """Enhanced branch serializer with ownership and statistics"""
     owner = UserSerializer(read_only=True)
     owner_name = serializers.SerializerMethodField()
+    wardens = serializers.SerializerMethodField()
     property_type_display = serializers.CharField(source='get_property_type_display', read_only=True)
     
     # Statistics (computed fields)
@@ -100,14 +101,14 @@ class BranchSerializer(serializers.ModelSerializer):
             'has_parking', 'has_wifi', 'has_ac', 'has_laundry', 'has_security', 'has_mess',
             'amenities', 'rules_and_regulations', 'nearby_facilities',
             # Administrative
-            'owner', 'owner_name', 'established_date', 'established_year', 
+            'owner', 'owner_name', 'wardens', 'established_date', 'established_year', 
             'license_number', 'notes', 'is_active', 'created_at', 'updated_at',
             # Statistics
             'total_rooms', 'occupied_rooms', 'occupied_beds', 'vacant_beds', 'total_beds', 
             'bed_occupancy_rate'
         ]
         read_only_fields = [
-            'id', 'owner_name', 'property_type_display', 'created_at', 'updated_at',
+            'id', 'owner_name', 'wardens', 'property_type_display', 'created_at', 'updated_at',
             'total_rooms', 'occupied_rooms', 'occupied_beds', 'vacant_beds', 'total_beds',
             'bed_occupancy_rate'
         ]
@@ -147,6 +148,19 @@ class BranchSerializer(serializers.ModelSerializer):
         if obj.owner:
             return obj.owner.get_full_name() or obj.owner.username
         return None
+
+    def get_wardens(self, obj):
+        assignments = WardenAssignment.objects.filter(
+            branch=obj, is_active=True
+        ).select_related('warden')
+        return [
+            {
+                'id': a.warden.id,
+                'name': a.warden.get_full_name() or a.warden.username,
+                'username': a.warden.username,
+            }
+            for a in assignments
+        ]
 
 
 class RoomSerializer(serializers.ModelSerializer):
