@@ -25,25 +25,32 @@ import {
  * Reusable Tenant Table Component
  * Used by both Active and Vacated tenant tabs
  */
-// Rent status badge for the management table
-function RentStatusBadge({ rentStatus }) {
+// Rent status badge for the management table — clickable to open rent history
+function RentStatusBadge({ rentStatus, onClick }) {
   if (!rentStatus) return <Typography variant="body2" color="text.secondary">—</Typography>;
 
   const cfg = {
-    PAID:    { label: '✓ Paid',         color: 'success' },
+    PAID:    { label: '✓ Paid',                                          color: 'success' },
     PARTIAL: { label: `₹${rentStatus.due?.toLocaleString('en-IN')} Due`, color: 'warning' },
-    PENDING: { label: 'Pending',         color: 'default' },
-    OVERDUE: { label: `₹${rentStatus.due?.toLocaleString('en-IN')} Due`, color: 'error' },
-    UNKNOWN: { label: 'No rent set',     color: 'default' },
+    PENDING: { label: 'Pending',                                         color: 'default' },
+    OVERDUE: { label: `₹${rentStatus.due?.toLocaleString('en-IN')} Due`, color: 'error'   },
+    UNKNOWN: { label: 'No rent set',                                     color: 'default' },
   }[rentStatus.rent_status] || { label: rentStatus.rent_status, color: 'default' };
 
   return (
-    <Chip
-      label={cfg.label}
-      color={cfg.color}
-      size="small"
-      sx={{ fontWeight: 600, fontSize: '0.72rem' }}
-    />
+    <Tooltip title="Click to view rent history">
+      <Chip
+        label={cfg.label}
+        color={cfg.color}
+        size="small"
+        onClick={onClick}
+        sx={{
+          fontWeight: 600,
+          fontSize: '0.72rem',
+          cursor: onClick ? 'pointer' : 'default',
+        }}
+      />
+    </Tooltip>
   );
 }
 
@@ -93,18 +100,6 @@ function TenantTable({
     });
   };
 
-  const getStayTypeBadge = (stayType) => {
-    const color = stayType === 'monthly' ? 'primary' : 'secondary';
-    return (
-      <Chip 
-        label={stayType || 'N/A'} 
-        color={color} 
-        size="small"
-        sx={{ textTransform: 'capitalize' }}
-      />
-    );
-  };
-
   return (
     <TableContainer component={Paper}>
       <Table>
@@ -112,11 +107,11 @@ function TenantTable({
           <TableRow>
             <TableCell><strong>Name</strong></TableCell>
             <TableCell><strong>Room</strong></TableCell>
-            <TableCell><strong>Phone</strong></TableCell>
-            <TableCell><strong>Stay Type</strong></TableCell>
+            <TableCell><strong>Contact</strong></TableCell>
+            <TableCell><strong>Status</strong></TableCell>
             <TableCell><strong>Joined</strong></TableCell>
             {showVacatedDate && <TableCell><strong>Vacated</strong></TableCell>}
-            {showRentStatus && <TableCell><strong>Rent (This Month)</strong></TableCell>}
+            {showRentStatus && <TableCell><strong>Rent Status</strong></TableCell>}
             <TableCell align="center"><strong>Actions</strong></TableCell>
           </TableRow>
         </TableHead>
@@ -143,8 +138,18 @@ function TenantTable({
               </TableCell>
               
               <TableCell>{tenant.phone_number || '-'}</TableCell>
-              
-              <TableCell>{getStayTypeBadge(tenant.stay_type)}</TableCell>
+
+              <TableCell>
+                {(() => {
+                  const s = tenant.status || (tenant.vacating_date ? 'VACATED' : tenant.joining_date ? 'ACTIVE' : 'PENDING');
+                  const cfg = {
+                    ACTIVE:  { label: 'Active',  color: 'success' },
+                    VACATED: { label: 'Vacated', color: 'default' },
+                    PENDING: { label: 'Pending', color: 'warning' },
+                  }[s] || { label: s, color: 'default' };
+                  return <Chip label={cfg.label} color={cfg.color} size="small" />;
+                })()}
+              </TableCell>
               
               <TableCell>{formatDate(tenant.joining_date)}</TableCell>
               
@@ -154,7 +159,10 @@ function TenantTable({
 
               {showRentStatus && (
                 <TableCell>
-                  <RentStatusBadge rentStatus={tenant.current_rent_status} />
+                  <RentStatusBadge
+                    rentStatus={tenant.current_rent_status}
+                    onClick={() => onView?.(tenant)}
+                  />
                 </TableCell>
               )}
 

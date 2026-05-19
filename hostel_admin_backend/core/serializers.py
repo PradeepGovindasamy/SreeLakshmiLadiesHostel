@@ -267,8 +267,13 @@ class TenantSerializer(serializers.ModelSerializer):
         try:
             from .rent_utils import current_month_rent_status
             return current_month_rent_status(obj)
-        except Exception:
-            return None
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).exception(
+                'get_current_rent_status failed for tenant %s (id=%s): %s',
+                obj.name, obj.pk, exc,
+            )
+            return {'rent_status': 'UNKNOWN', 'agreed_rent': None, 'total_paid': 0, 'due': 0}
     
     def validate(self, data):
         """Validate room capacity and assignment"""

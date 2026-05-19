@@ -6,7 +6,7 @@ import PasswordResetConfirmPage from '../pages/PasswordResetConfirmPage';
 import ConditionalDashboard from '../components/ConditionalDashboard';
 import Branches from '../components/Branches';
 import Rooms from '../components/Rooms';
-import SimpleTenants from '../components/SimpleTenants';
+import TenantsPage from '../components/tenants/TenantsPage';
 import RoomStatus from '../components/RoomStatus';
 import RoleTestPage from '../components/RoleTestPage';
 import RoleFilteredBranches from '../components/RoleFilteredBranches';
@@ -89,7 +89,7 @@ export const routeConfig = [
   },
   {
     path: '/tenants',
-    component: SimpleTenants,
+    component: TenantsPage,
     requiredRoles: ['owner', 'admin', 'warden'],
     title: 'Tenants',
     showInNav: true,

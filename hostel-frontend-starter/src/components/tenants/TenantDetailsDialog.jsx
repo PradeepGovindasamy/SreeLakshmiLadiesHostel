@@ -1,16 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  Grid,
-  Typography,
-  Divider,
-  Box,
-  Chip,
-  Paper
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  Button, Grid, Typography, Divider, Box, Chip, Paper,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  LinearProgress, Alert, Collapse, IconButton, Tooltip,
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -19,210 +12,336 @@ import {
   Email as EmailIcon,
   CalendarToday as CalendarIcon,
   ContactEmergency as EmergencyIcon,
-  Badge as BadgeIcon
+  Badge as BadgeIcon,
+  Payment as PaymentIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  Refresh as RefreshIcon,
 } from '@mui/icons-material';
+import { enhancedAPI } from '../../api';
 
-/**
- * Tenant Details Dialog
- * Displays comprehensive tenant information
- */
+// ── Rent status chip ──────────────────────────────────────────────────────────
+function RentStatusChip({ status }) {
+  const cfg = {
+    PAID:    { label: 'Paid',    color: 'success' },
+    PARTIAL: { label: 'Partial', color: 'warning' },
+    PENDING: { label: 'Pending', color: 'default' },
+    OVERDUE: { label: 'Overdue', color: 'error'   },
+    UNKNOWN: { label: 'No rent', color: 'default' },
+  }[status] || { label: status || '—', color: 'default' };
+
+  return <Chip label={cfg.label} color={cfg.color} size="small" sx={{ fontWeight: 600 }} />;
+}
+
+// ── Single ledger row ─────────────────────────────────────────────────────────
+function LedgerRow({ entry }) {
+  const amtColor = {
+    PAID: 'success.main', OVERDUE: 'error.main',
+    PARTIAL: 'warning.main', PENDING: 'text.secondary', UNKNOWN: 'text.disabled',
+  }[entry.rent_status] || 'text.secondary';
+
+  return (
+    <TableRow hover>
+      <TableCell>
+        <Typography variant="body2" fontWeight={600}>{entry.for_month_display}</Typography>
+      </TableCell>
+      <TableCell align="right">
+        {entry.agreed_rent != null
+          ? `₹${Number(entry.agreed_rent).toLocaleString('en-IN')}`
+          : '—'}
+      </TableCell>
+      <TableCell align="right">
+        {entry.total_paid > 0
+          ? <Typography variant="body2" color="success.main" fontWeight={600}>
+              ₹{Number(entry.total_paid).toLocaleString('en-IN')}
+            </Typography>
+          : <Typography variant="body2" color="text.disabled">—</Typography>}
+      </TableCell>
+      <TableCell align="right">
+        {entry.due > 0
+          ? <Typography variant="body2" color="error.main" fontWeight={700}>
+              ₹{Number(entry.due).toLocaleString('en-IN')}
+            </Typography>
+          : <Typography variant="body2" color="success.main">—</Typography>}
+      </TableCell>
+      <TableCell>
+        <RentStatusChip status={entry.rent_status} />
+      </TableCell>
+    </TableRow>
+  );
+}
+
+// ── Main dialog ───────────────────────────────────────────────────────────────
 function TenantDetailsDialog({ open, onClose, tenant, readOnly = false }) {
+  const [ledger, setLedger]           = useState([]);
+  const [summary, setSummary]         = useState(null);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerError, setLedgerError] = useState(null);
+  const [ledgerOpen, setLedgerOpen]   = useState(true);
+
+  // Fetch ledger whenever the dialog opens for a tenant
+  useEffect(() => {
+    if (!open || !tenant?.id) return;
+    fetchLedger();
+  }, [open, tenant?.id]);
+
+  const fetchLedger = async () => {
+    if (!tenant?.id) return;
+    setLedgerLoading(true);
+    setLedgerError(null);
+    try {
+      const res = await enhancedAPI.tenants.getRentLedger(tenant.id);
+      setLedger(res.data.ledger || []);
+      setSummary(res.data.summary || null);
+    } catch (err) {
+      console.error('Rent ledger fetch error:', err?.response?.data);
+      const msg = err?.response?.data?.error
+        || err?.response?.data?.detail
+        || 'Failed to load rent history.';
+      setLedgerError(msg);
+    } finally {
+      setLedgerLoading(false);
+    }
+  };
+
   if (!tenant) return null;
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Not set';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      year: 'numeric', month: 'long', day: 'numeric',
     });
   };
 
   const DetailRow = ({ icon, label, value }) => (
-    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-      <Box sx={{ mr: 2, color: 'primary.main' }}>
-        {icon}
-      </Box>
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
+      <Box sx={{ mr: 2, color: 'primary.main', mt: 0.3 }}>{icon}</Box>
       <Box>
-        <Typography variant="caption" color="text.secondary">
-          {label}
-        </Typography>
-        <Typography variant="body1">
-          {value || 'Not provided'}
-        </Typography>
+        <Typography variant="caption" color="text.secondary">{label}</Typography>
+        <Typography variant="body2">{value || 'Not provided'}</Typography>
       </Box>
     </Box>
   );
 
+  const lifecycleStatus = tenant.status
+    || (tenant.vacating_date ? 'VACATED' : tenant.joining_date ? 'ACTIVE' : 'PENDING');
+
+  const statusChipProps = {
+    ACTIVE:  { label: 'Active',  color: 'success' },
+    VACATED: { label: 'Vacated', color: 'default' },
+    PENDING: { label: 'Pending', color: 'warning' },
+  }[lifecycleStatus] || { label: lifecycleStatus, color: 'default' };
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth
+      PaperProps={{ sx: { borderRadius: 3 } }}>
+
+      {/* ── Title ───────────────────────────────────────────────────── */}
+      <DialogTitle sx={{ pb: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <PersonIcon />
-          <Typography variant="h6">Tenant Details</Typography>
-          {/* Use backend-provided status field; fall back to date check for safety */}
-          {(() => {
-            const s = tenant.status || (tenant.vacating_date ? 'VACATED' : tenant.joining_date ? 'ACTIVE' : 'PENDING');
-            const chipProps = {
-              ACTIVE:   { label: 'Active',   color: 'success' },
-              VACATED:  { label: 'Vacated',  color: 'default' },
-              PENDING:  { label: 'Pending',  color: 'warning' },
-            }[s] || { label: s, color: 'default' };
-            return <Chip {...chipProps} size="small" />;
-          })()}
+          <PersonIcon color="primary" />
+          <Typography variant="h6" fontWeight={700}>Tenant Details</Typography>
+          <Chip {...statusChipProps} size="small" />
+          {tenant.current_rent_status && (
+            <RentStatusChip status={tenant.current_rent_status.rent_status} />
+          )}
         </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          {tenant.name} · {tenant.room_display || tenant.room?.room_name || 'No room assigned'}
+        </Typography>
       </DialogTitle>
-      
-      <DialogContent dividers>
-        <Grid container spacing={3}>
-          {/* Personal Information */}
-          <Grid item xs={12}>
-            <Typography variant="h6" gutterBottom color="primary">
-              Personal Information
-            </Typography>
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <DetailRow 
-                    icon={<PersonIcon />} 
-                    label="Full Name" 
-                    value={tenant.name} 
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <DetailRow 
-                    icon={<PhoneIcon />} 
-                    label="Phone Number" 
-                    value={tenant.phone_number} 
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <DetailRow 
-                    icon={<EmailIcon />} 
-                    label="Email" 
-                    value={tenant.email} 
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <DetailRow 
-                    icon={<HomeIcon />} 
-                    label="Address" 
-                    value={tenant.address} 
-                  />
-                </Grid>
-              </Grid>
-            </Paper>
-          </Grid>
 
-          {/* Room Information */}
-          <Grid item xs={12}>
-            <Typography variant="h6" gutterBottom color="primary">
-              Room Information
-            </Typography>
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <DetailRow 
-                    icon={<HomeIcon />} 
-                    label="Room" 
-                    value={tenant.room_name || tenant.room?.room_name} 
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">
-                    Stay Type
-                  </Typography>
-                  <Box sx={{ mt: 1 }}>
-                    <Chip 
-                      label={tenant.stay_type || 'Not specified'} 
-                      color={tenant.stay_type === 'monthly' ? 'primary' : 'secondary'}
-                      size="small"
-                      sx={{ textTransform: 'capitalize' }}
-                    />
-                  </Box>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <DetailRow 
-                    icon={<CalendarIcon />} 
-                    label="Joining Date" 
-                    value={formatDate(tenant.joining_date)} 
-                  />
-                </Grid>
-                {(tenant.status === 'VACATED' || tenant.vacating_date) && (
-                  <Grid item xs={12} sm={6}>
-                    <DetailRow
-                      icon={<CalendarIcon />}
-                      label="Vacating Date"
-                      value={formatDate(tenant.vacating_date)}
-                    />
-                  </Grid>
-                )}
-              </Grid>
-            </Paper>
-          </Grid>
+      <DialogContent dividers sx={{ p: 0 }}>
 
-          {/* Emergency Contact */}
-          <Grid item xs={12}>
-            <Typography variant="h6" gutterBottom color="primary">
-              Emergency Contact
-            </Typography>
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <DetailRow 
-                    icon={<EmergencyIcon />} 
-                    label="Emergency Contact Name" 
-                    value={tenant.emergency_contact_name} 
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <DetailRow 
-                    icon={<PhoneIcon />} 
-                    label="Emergency Contact Phone" 
-                    value={tenant.emergency_contact_phone} 
-                  />
-                </Grid>
-              </Grid>
-            </Paper>
-          </Grid>
+        {/* ── Profile + Room + Emergency + ID ─────────────────────── */}
+        <Box sx={{ p: 3 }}>
+          <Grid container spacing={3}>
 
-          {/* ID Proof */}
-          {tenant.id_proof_type && (
-            <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom color="primary">
-                ID Proof
+            {/* Personal Information */}
+            <Grid item xs={12} sm={6}>
+              <Typography variant="subtitle2" fontWeight={700} color="primary" gutterBottom>
+                Personal Information
               </Typography>
-              <Paper variant="outlined" sx={{ p: 2 }}>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
-                    <DetailRow 
-                      icon={<BadgeIcon />} 
-                      label="ID Type" 
-                      value={tenant.id_proof_type} 
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <DetailRow 
-                      icon={<BadgeIcon />} 
-                      label="ID Number" 
-                      value={tenant.id_proof_number} 
-                    />
-                  </Grid>
-                </Grid>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                <DetailRow icon={<PersonIcon fontSize="small" />}  label="Full Name"    value={tenant.name} />
+                <DetailRow icon={<PhoneIcon fontSize="small" />}   label="Phone"        value={tenant.phone_number} />
+                <DetailRow icon={<EmailIcon fontSize="small" />}   label="Email"        value={tenant.email} />
+                <DetailRow icon={<HomeIcon fontSize="small" />}    label="Address"      value={tenant.address} />
               </Paper>
             </Grid>
+
+            {/* Room Information */}
+            <Grid item xs={12} sm={6}>
+              <Typography variant="subtitle2" fontWeight={700} color="primary" gutterBottom>
+                Room Information
+              </Typography>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                <DetailRow icon={<HomeIcon fontSize="small" />}     label="Room"         value={tenant.room_name || tenant.room?.room_name} />
+                <DetailRow icon={<HomeIcon fontSize="small" />}     label="Branch"       value={tenant.branch_name} />
+                <DetailRow icon={<CalendarIcon fontSize="small" />} label="Joining Date" value={formatDate(tenant.joining_date)} />
+                {(lifecycleStatus === 'VACATED' || tenant.vacating_date) && (
+                  <DetailRow icon={<CalendarIcon fontSize="small" />} label="Vacating Date" value={formatDate(tenant.vacating_date)} />
+                )}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                  <Typography variant="caption" color="text.secondary">Stay Type</Typography>
+                  <Chip
+                    label={tenant.stay_type || 'N/A'}
+                    size="small"
+                    color={tenant.stay_type === 'monthly' ? 'primary' : 'default'}
+                    sx={{ textTransform: 'capitalize' }}
+                  />
+                </Box>
+              </Paper>
+            </Grid>
+
+            {/* Emergency Contact */}
+            <Grid item xs={12} sm={6}>
+              <Typography variant="subtitle2" fontWeight={700} color="primary" gutterBottom>
+                Emergency Contact
+              </Typography>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                <DetailRow icon={<EmergencyIcon fontSize="small" />} label="Name"  value={tenant.emergency_contact_name} />
+                <DetailRow icon={<PhoneIcon fontSize="small" />}      label="Phone" value={tenant.emergency_contact_phone} />
+              </Paper>
+            </Grid>
+
+            {/* ID Proof */}
+            {tenant.id_proof_type && (
+              <Grid item xs={12} sm={6}>
+                <Typography variant="subtitle2" fontWeight={700} color="primary" gutterBottom>
+                  ID Proof
+                </Typography>
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                  <DetailRow icon={<BadgeIcon fontSize="small" />} label="ID Type"   value={tenant.id_proof_type_display || tenant.id_proof_type} />
+                  <DetailRow icon={<BadgeIcon fontSize="small" />} label="ID Number" value={tenant.id_proof_number} />
+                </Paper>
+              </Grid>
+            )}
+          </Grid>
+        </Box>
+
+        {/* ── Rent Ledger ──────────────────────────────────────────── */}
+        <Divider />
+        <Box sx={{ px: 3, py: 1.5, backgroundColor: '#f8fafc' }}>
+          <Box
+            sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+            onClick={() => setLedgerOpen(o => !o)}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <PaymentIcon color="primary" fontSize="small" />
+              <Typography variant="subtitle2" fontWeight={700}>Rent History</Typography>
+              {summary && (
+                <>
+                  <Chip
+                    label={`${summary.total_months} months`}
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontSize: '0.7rem' }}
+                  />
+                  {summary.overdue_months_count > 0 && (
+                    <Chip
+                      label={`${summary.overdue_months_count} overdue`}
+                      color="error"
+                      size="small"
+                      sx={{ fontSize: '0.7rem' }}
+                    />
+                  )}
+                </>
+              )}
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Tooltip title="Refresh">
+                <IconButton
+                  size="small"
+                  onClick={e => { e.stopPropagation(); fetchLedger(); }}
+                >
+                  <RefreshIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <IconButton size="small">
+                {ledgerOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              </IconButton>
+            </Box>
+          </Box>
+
+          {/* Summary bar */}
+          {summary && ledgerOpen && (
+            <Box sx={{ display: 'flex', gap: 3, mt: 1, flexWrap: 'wrap' }}>
+              <Typography variant="caption" color="text.secondary">
+                Total paid:&nbsp;
+                <strong style={{ color: '#16a34a' }}>
+                  ₹{Number(summary.total_paid).toLocaleString('en-IN')}
+                </strong>
+              </Typography>
+              {summary.total_due > 0 && (
+                <Typography variant="caption" color="error.main">
+                  Outstanding:&nbsp;
+                  <strong>₹{Number(summary.total_due).toLocaleString('en-IN')}</strong>
+                </Typography>
+              )}
+            </Box>
           )}
-        </Grid>
+        </Box>
+
+        <Collapse in={ledgerOpen}>
+          <Box sx={{ px: 3, pb: 2 }}>
+            {ledgerLoading && (
+              <Box sx={{ py: 2 }}>
+                <LinearProgress sx={{ borderRadius: 2 }} />
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  Loading rent history…
+                </Typography>
+              </Box>
+            )}
+
+            {ledgerError && !ledgerLoading && (
+              <Alert
+                severity="error"
+                sx={{ mt: 1, borderRadius: 2 }}
+                action={<Button size="small" onClick={fetchLedger}>Retry</Button>}
+              >
+                {ledgerError}
+              </Alert>
+            )}
+
+            {!ledgerLoading && !ledgerError && ledger.length > 0 && (
+              <TableContainer sx={{ mt: 1, maxHeight: 300, border: '1px solid #e2e8f0', borderRadius: 2 }}>
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700, backgroundColor: '#f1f5f9' }}>Month</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, backgroundColor: '#f1f5f9' }}>Rent</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, backgroundColor: '#f1f5f9' }}>Paid</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, backgroundColor: '#f1f5f9' }}>Due</TableCell>
+                      <TableCell sx={{ fontWeight: 700, backgroundColor: '#f1f5f9' }}>Status</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {ledger.map(entry => (
+                      <LedgerRow key={entry.for_month} entry={entry} />
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+
+            {!ledgerLoading && !ledgerError && ledger.length === 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                No rent history found for this tenant.
+              </Typography>
+            )}
+          </Box>
+        </Collapse>
+
       </DialogContent>
-      
-      <DialogActions>
+
+      <DialogActions sx={{ px: 3, py: 1.5 }}>
         {readOnly && (
-          <Typography variant="caption" color="text.secondary" sx={{ mr: 'auto', ml: 2 }}>
-            This is a read-only view
+          <Typography variant="caption" color="text.secondary" sx={{ mr: 'auto' }}>
+            Read-only view
           </Typography>
         )}
-        <Button onClick={onClose} variant="contained">
+        <Button onClick={onClose} variant="contained" sx={{ borderRadius: 2 }}>
           Close
         </Button>
       </DialogActions>
