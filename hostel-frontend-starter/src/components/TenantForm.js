@@ -129,9 +129,6 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
         await fetchBranches();
         
         if (isEdit && tenant) {
-          console.log('Editing tenant with data:', tenant);
-          console.log('Tenant vacating_date:', tenant.vacating_date);
-          console.log('Tenant joining_date:', tenant.joining_date);
           setFormData({
             name: tenant.name || '',
             email: tenant.email || '',
@@ -158,10 +155,10 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
             guardian_name: tenant.guardian_name || '',
             guardian_contact: tenant.guardian_contact || '',
             guardian_relation: tenant.guardian_relation || '',
-            // Backend returns room_detail (full object) and room (ID)
-            // room_detail.branch is the full branch object with id
-            branch: tenant.room_detail?.branch?.id || tenant.room?.branch?.id || tenant.room?.branch || '', 
-            room: tenant.room_detail?.id || tenant.room?.id || tenant.room || '', // Get room ID from room_detail first
+            // RoomSerializer returns branch as the integer branch PK (not an object).
+            // room_detail.id is the room PK.
+            branch: tenant.room_detail?.branch || '',
+            room: tenant.room_detail?.id || '',
             join_date: tenant.joining_date || '', // Map from backend field
             leave_date: tenant.vacating_date || '', // Map from backend field
             rent_amount: tenant.rent_amount || '',
@@ -185,10 +182,8 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
             status: tenant.status || 'active'
           });
           
-          // Fetch rooms for the tenant's branch if available
-          // Backend returns room_detail with full branch object
-          const branchId = tenant.room_detail?.branch?.id || tenant.room?.branch?.id || tenant.room?.branch;
-          console.log('Branch ID for fetching rooms:', branchId, 'from tenant.room_detail:', tenant.room_detail);
+          // room_detail.branch is the integer branch PK from RoomSerializer
+          const branchId = tenant.room_detail?.branch;
           if (branchId) {
             await fetchRooms(branchId);
           }
@@ -215,14 +210,17 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
   const fetchRooms = async (branchId) => {
     try {
       const response = await enhancedAPI.rooms.list({ branch: branchId });
-      console.log('Fetched rooms for tenant form:', response.data);
       setRooms(response.data);
-      // Filter available rooms (not at full capacity)
-      const available = response.data.filter(room => 
-        room.is_available && 
-        (room.current_occupancy || 0) < (room.sharing_type || 1)
+
+      // In edit mode, always include the tenant's current room even if it's at
+      // capacity (the tenant is already occupying it, so the slot is theirs).
+      const currentRoomId = isEdit ? (tenant?.room_detail?.id) : null;
+
+      const available = response.data.filter(room =>
+        room.id === currentRoomId ||          // always include current room
+        (room.is_available &&
+          (room.current_occupancy || 0) < (room.sharing_type || 1))
       );
-      console.log('Available rooms:', available);
       setAvailableRooms(available);
     } catch (error) {
       console.error('Error fetching rooms:', error);
@@ -676,8 +674,6 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
         );
 
       case 3:
-        console.log('Step 3 - Room & Stay Details - Current formData:', formData);
-        console.log('Step 3 - join_date:', formData.join_date, 'leave_date:', formData.leave_date);
         return (
           <Grid container spacing={3}>
             <Grid item xs={12} sm={6}>

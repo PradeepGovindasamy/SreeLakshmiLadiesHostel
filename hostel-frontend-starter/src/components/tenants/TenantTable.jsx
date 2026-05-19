@@ -130,10 +130,19 @@ function TenantTable({
               </TableCell>
               
               <TableCell>
-                {tenant.room_name || tenant.room?.room_name || (
-                  <Typography variant="body2" color="text.secondary">
-                    Not assigned
-                  </Typography>
+                {tenant.room_detail ? (
+                  <Box>
+                    <Typography variant="body2" fontWeight="medium">
+                      {tenant.room_detail.room_name}
+                    </Typography>
+                    {tenant.branch_name && (
+                      <Typography variant="caption" color="text.secondary">
+                        {tenant.branch_name}
+                      </Typography>
+                    )}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">Not assigned</Typography>
                 )}
               </TableCell>
               
