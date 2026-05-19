@@ -204,6 +204,8 @@ class TenantSerializer(serializers.ModelSerializer):
     is_active = serializers.SerializerMethodField()
     # Canonical lifecycle status: ACTIVE | VACATED | PENDING
     status = serializers.SerializerMethodField()
+    # Current-month rent status: PAID | PARTIAL | PENDING | OVERDUE | UNKNOWN | null
+    current_rent_status = serializers.SerializerMethodField()
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
 
     class Meta:
@@ -216,13 +218,13 @@ class TenantSerializer(serializers.ModelSerializer):
             'id_proof_type', 'id_proof_type_display', 'id_proof_number',
             'father_name', 'father_aadhar', 'mother_name', 'mother_aadhar',
             'guardian_name', 'guardian_aadhar',
-            'status', 'is_active',
+            'status', 'is_active', 'current_rent_status',
             'created_at', 'updated_at', 'created_by', 'created_by_name',
         ]
         read_only_fields = [
             'id', 'user', 'room_detail', 'room_display', 'branch_name',
             'stay_type_display', 'id_proof_type_display',
-            'status', 'is_active',
+            'status', 'is_active', 'current_rent_status',
             'created_at', 'updated_at', 'created_by_name',
         ]
         extra_kwargs = {
@@ -253,6 +255,20 @@ class TenantSerializer(serializers.ModelSerializer):
     def get_is_active(self, obj):
         """Backward-compatible boolean derived from status."""
         return obj.vacating_date is None
+
+    def get_current_rent_status(self, obj):
+        """
+        Rent status for the current calendar month.
+        Only computed for ACTIVE tenants; vacated/pending tenants return None.
+        Values: PAID | PARTIAL | PENDING | OVERDUE | UNKNOWN
+        """
+        if obj.vacating_date is not None or obj.joining_date is None:
+            return None
+        try:
+            from .rent_utils import current_month_rent_status
+            return current_month_rent_status(obj)
+        except Exception:
+            return None
     
     def validate(self, data):
         """Validate room capacity and assignment"""

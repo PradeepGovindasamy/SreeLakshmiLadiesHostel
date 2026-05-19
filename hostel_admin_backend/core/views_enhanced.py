@@ -602,6 +602,66 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
         payments = RentPayment.objects.filter(tenant=tenant).order_by('-payment_date')
         serializer = RentPaymentSerializer(payments, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='rent-ledger')
+    def rent_ledger(self, request, pk=None):
+        """
+        GET /api/v2/tenants/{id}/rent-ledger/
+        Returns full rent ledger for a specific tenant.
+        Accessible by admin, owner (own branch), warden (assigned branch).
+        """
+        from .rent_utils import build_rent_ledger, current_month_rent_status
+        tenant = self.get_object()  # enforces has_object_permission
+
+        ledger = build_rent_ledger(tenant)
+        total_paid = sum(e['total_paid'] for e in ledger)
+        total_due = sum(e['due'] for e in ledger)
+        overdue_count = sum(1 for e in ledger if e['rent_status'] == 'OVERDUE')
+        current = ledger[0] if ledger else None
+
+        return Response({
+            'tenant_id': tenant.pk,
+            'tenant_name': tenant.name,
+            'room': tenant.room.room_name if tenant.room else None,
+            'branch': tenant.room.branch.name if tenant.room and tenant.room.branch else None,
+            'joining_date': tenant.joining_date,
+            'vacating_date': tenant.vacating_date,
+            'summary': {
+                'total_months': len(ledger),
+                'total_paid': total_paid,
+                'total_due': total_due,
+                'overdue_months_count': overdue_count,
+                'current_month_status': current['rent_status'] if current else None,
+            },
+            'ledger': ledger,
+        })
+
+    @action(detail=True, methods=['get'], url_path='rent-status')
+    def rent_status(self, request, pk=None):
+        """
+        GET /api/v2/tenants/{id}/rent-status/
+        GET /api/v2/tenants/{id}/rent-status/?month=YYYY-MM
+        Returns rent status for a specific month (defaults to current month).
+        """
+        from datetime import date
+        from .rent_utils import month_rent_status
+        tenant = self.get_object()
+
+        month_param = request.query_params.get('month')
+        if month_param:
+            try:
+                parts = month_param.split('-')
+                target = date(int(parts[0]), int(parts[1]), 1)
+            except (ValueError, IndexError):
+                return Response(
+                    {'error': 'Invalid month format. Use YYYY-MM.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            target = date.today()
+
+        result = month_rent_status(tenant, target)
+        return Response({'tenant_id': tenant.pk, 'tenant_name': tenant.name, **result})
     
     @action(detail=True, methods=['post'])
     def checkout(self, request, pk=None):

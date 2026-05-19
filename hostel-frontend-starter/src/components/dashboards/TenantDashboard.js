@@ -1,145 +1,156 @@
 // src/components/dashboards/TenantDashboard.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Grid, Card, CardContent, Typography, Box, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Paper, Chip, Avatar, Divider,
-  LinearProgress, Alert, IconButton, Tooltip, Button, List, ListItem,
-  ListItemText, ListItemIcon, TextField, Dialog, DialogTitle, DialogContent,
-  DialogActions, MenuItem, Select, FormControl, InputLabel
+  LinearProgress, Alert, Button, Collapse, IconButton, Tooltip,
 } from '@mui/material';
 import {
-  Person, Home, Payment, ListAlt, Add, Edit, Visibility,
-  Phone, Email, CalendarToday, LocationOn, AccountBalance,
-  CheckCircle, Warning, Error, Info, Send
+  Person, Home, Payment, ExpandMore, ExpandLess,
+  Phone, Email, CalendarToday, LocationOn, CheckCircle,
+  Warning, Error as ErrorIcon, HourglassEmpty, Refresh,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
-import { enhancedAPI } from '../../api';
+import { myAPI } from '../../api';
 import { useUser } from '../../contexts/UserContext';
 
+// ── Rent status chip ──────────────────────────────────────────────────────────
+
+function RentStatusChip({ status, due }) {
+  const cfg = {
+    PAID:    { label: '✓ Paid',                                 color: 'success', icon: <CheckCircle fontSize="small" /> },
+    PARTIAL: { label: `₹${Number(due || 0).toLocaleString('en-IN')} Due`, color: 'warning', icon: <Warning fontSize="small" /> },
+    PENDING: { label: 'Pending',                                color: 'default', icon: <HourglassEmpty fontSize="small" /> },
+    OVERDUE: { label: `₹${Number(due || 0).toLocaleString('en-IN')} Overdue`, color: 'error', icon: <ErrorIcon fontSize="small" /> },
+    UNKNOWN: { label: 'Rent not configured',                    color: 'default', icon: null },
+  }[status] || { label: status || '—', color: 'default', icon: null };
+
+  return (
+    <Chip
+      icon={cfg.icon}
+      label={cfg.label}
+      color={cfg.color}
+      variant={status === 'PAID' ? 'filled' : 'outlined'}
+      sx={{ fontWeight: 600 }}
+    />
+  );
+}
+
+// ── Ledger row ────────────────────────────────────────────────────────────────
+
+function LedgerRow({ entry }) {
+  const statusColor = {
+    PAID:    'success.main',
+    PARTIAL: 'warning.main',
+    PENDING: 'text.secondary',
+    OVERDUE: 'error.main',
+    UNKNOWN: 'text.disabled',
+  }[entry.rent_status] || 'text.secondary';
+
+  return (
+    <TableRow hover>
+      <TableCell>
+        <Typography variant="body2" fontWeight={600}>{entry.for_month_display}</Typography>
+      </TableCell>
+      <TableCell align="right">
+        {entry.agreed_rent != null
+          ? `₹${Number(entry.agreed_rent).toLocaleString('en-IN')}`
+          : '—'}
+      </TableCell>
+      <TableCell align="right">
+        {entry.total_paid > 0
+          ? `₹${Number(entry.total_paid).toLocaleString('en-IN')}`
+          : '—'}
+      </TableCell>
+      <TableCell align="right">
+        {entry.due > 0
+          ? <Typography variant="body2" color="error.main" fontWeight={600}>
+              ₹{Number(entry.due).toLocaleString('en-IN')}
+            </Typography>
+          : <Typography variant="body2" color="success.main">—</Typography>}
+      </TableCell>
+      <TableCell>
+        <Chip
+          label={entry.rent_status}
+          size="small"
+          sx={{ color: statusColor, borderColor: statusColor, fontWeight: 600 }}
+          variant="outlined"
+        />
+      </TableCell>
+    </TableRow>
+  );
+}
+
+// ── Main Dashboard ────────────────────────────────────────────────────────────
+
 const TenantDashboard = () => {
-  const navigate = useNavigate();
   const { user, profile, getUserName } = useUser();
-  const [loading, setLoading] = useState(true);
+
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [loadingLedger, setLoadingLedger] = useState(false);
   const [error, setError] = useState(null);
-  const [openRequestDialog, setOpenRequestDialog] = useState(false);
-  const [dashboardData, setDashboardData] = useState({
-    tenantProfile: null,
-    recentPayments: [],
-    serviceRequests: [],
-    roomDetails: null,
-    statistics: {
-      totalRequests: 0,
-      pendingRequests: 0,
-      resolvedRequests: 0,
-      totalPayments: 0,
-      pendingPayments: 0
+  const [ledgerError, setLedgerError] = useState(null);
+
+  const [tenantProfile, setTenantProfile] = useState(null);
+  const [rentStatus, setRentStatus] = useState(null);
+  const [ledger, setLedger] = useState([]);
+  const [ledgerSummary, setLedgerSummary] = useState(null);
+  const [ledgerOpen, setLedgerOpen] = useState(false);
+
+  // Load profile + current rent status
+  const fetchProfile = useCallback(async () => {
+    setLoadingProfile(true);
+    setError(null);
+    try {
+      const [profileRes, rentRes] = await Promise.all([
+        myAPI.profile(),
+        myAPI.rentStatus(),
+      ]);
+      setTenantProfile(profileRes.data);
+      setRentStatus(rentRes.data);
+    } catch (err) {
+      console.error('TenantDashboard fetch error:', {
+        status: err?.response?.status,
+        data: err?.response?.data,
+      });
+      const msg = err?.response?.data?.error
+        || err?.response?.data?.detail
+        || 'Failed to load your profile. Please try again.';
+      setError(msg);
+    } finally {
+      setLoadingProfile(false);
     }
-  });
-
-  const [newRequest, setNewRequest] = useState({
-    request_type: '',
-    title: '',
-    description: '',
-    priority: 'medium'
-  });
-
-  useEffect(() => {
-    fetchDashboardData();
   }, []);
 
-  const fetchDashboardData = async () => {
+  // Load full rent ledger (lazy — only when section is expanded)
+  const fetchLedger = useCallback(async () => {
+    if (loadingLedger) return;
+    setLoadingLedger(true);
+    setLedgerError(null);
     try {
-      setLoading(true);
-      const tenantsRes = await enhancedAPI.tenants.list();
-      const allTenants = tenantsRes.data.results || tenantsRes.data || [];
-      // Find the current user's tenant record
-      const myTenant = allTenants.find(t => t.user === user?.id || t.user?.id === user?.id) || null;
-
-      let paymentsData = [];
-      try {
-        const paymentsRes = await enhancedAPI.payments.list();
-        paymentsData = paymentsRes.data.results || paymentsRes.data || [];
-      } catch (_) {
-        // Payments endpoint may not be available yet
-      }
-
-      const pendingPayments = paymentsData.filter(p => p.status === 'pending').length;
-      setDashboardData({
-        tenantProfile: myTenant,
-        recentPayments: paymentsData.slice(0, 5),
-        serviceRequests: [],
-        roomDetails: myTenant
-          ? { room_number: myTenant.room_display, branch: myTenant.branch_name }
-          : null,
-        statistics: {
-          totalRequests: 0,
-          pendingRequests: 0,
-          resolvedRequests: 0,
-          totalPayments: paymentsData.length,
-          pendingPayments,
-        }
-      });
-      setError(null);
+      const res = await myAPI.rentLedger();
+      setLedger(res.data.ledger || []);
+      setLedgerSummary(res.data.summary || null);
     } catch (err) {
-      console.error('Failed to fetch dashboard data:', err);
-      setError('Failed to load dashboard data');
+      console.error('Ledger fetch error:', err?.response?.data);
+      setLedgerError('Failed to load payment history.');
     } finally {
-      setLoading(false);
+      setLoadingLedger(false);
     }
+  }, [loadingLedger]);
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const handleToggleLedger = () => {
+    if (!ledgerOpen && ledger.length === 0) {
+      fetchLedger();
+    }
+    setLedgerOpen(o => !o);
   };
 
-  const handleSubmitRequest = async () => {
-    // Service requests endpoint not yet available
-    setOpenRequestDialog(false);
-    setNewRequest({ request_type: '', title: '', description: '', priority: 'medium' });
-  };
-
-  const StatCard = ({ title, value, icon, gradient, subtitle }) => (
-    <Card elevation={0} sx={{ height: '100%', border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden', position: 'relative', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: 4 } }}>
-      <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: gradient }} />
-      <CardContent sx={{ pt: 2.5 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <Box>
-            <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.8 }}>{title}</Typography>
-            <Typography variant="h3" fontWeight={800} color="grey.900" sx={{ mt: 0.5, lineHeight: 1 }}>{value}</Typography>
-            {subtitle && <Typography variant="caption" color="text.secondary">{subtitle}</Typography>}
-          </Box>
-          <Avatar sx={{ borderRadius: 2, background: gradient, width: 44, height: 44 }}>{icon}</Avatar>
-        </Box>
-      </CardContent>
-    </Card>
-  );
-
-  const getStatusChip = (status) => {
-    const statusColors = {
-      'open': 'warning',
-      'in_progress': 'info', 
-      'resolved': 'success',
-      'closed': 'default',
-      'pending': 'warning',
-      'paid': 'success',
-      'overdue': 'error'
-    };
-    return (
-      <Chip 
-        label={status?.replace('_', ' ').toUpperCase()} 
-        color={statusColors[status] || 'default'} 
-        size="small"
-      />
-    );
-  };
-
-  const getPriorityIcon = (priority) => {
-    const icons = {
-      'urgent': <Error color="error" />,
-      'high': <Warning color="warning" />,
-      'medium': <Info color="info" />,
-      'low': <CheckCircle color="success" />
-    };
-    return icons[priority] || <Info />;
-  };
-
-  if (loading) {
+  // ── Render: loading ──────────────────────────────────────────────────────
+  if (loadingProfile) {
     return (
       <Box sx={{ p: 4 }}>
         <LinearProgress sx={{ borderRadius: 2, mb: 2 }} />
@@ -148,387 +159,303 @@ const TenantDashboard = () => {
     );
   }
 
+  // ── Render: error ────────────────────────────────────────────────────────
   if (error) {
     return (
       <Box sx={{ p: 4 }}>
-        <Alert severity="error" sx={{ borderRadius: 2 }}
-          action={<Button size="small" onClick={fetchDashboardData}>Retry</Button>}
-        >{error}</Alert>
+        <Alert
+          severity="error"
+          sx={{ borderRadius: 2 }}
+          action={<Button size="small" onClick={fetchProfile}>Retry</Button>}
+        >
+          {error}
+        </Alert>
       </Box>
     );
   }
 
-  const { tenantProfile, recentPayments, serviceRequests, roomDetails, statistics } = dashboardData;
+  const rs = rentStatus;  // shorthand
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* Header */}
-      <Box mb={4}>
-        <Typography variant="h4" gutterBottom>
-          Welcome back, {getUserName()}!
-        </Typography>
-        <Typography variant="subtitle1" color="textSecondary">
-          Tenant Dashboard - Your hostel information
-        </Typography>
+    <Box sx={{ p: { xs: 2, md: 3 } }}>
+
+      {/* ── Header ───────────────────────────────────────────────────────── */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box>
+          <Typography variant="h5" fontWeight={700}>
+            Welcome back, {tenantProfile?.name || getUserName()}!
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Tenant Dashboard — your hostel information
+          </Typography>
+        </Box>
+        <Tooltip title="Refresh">
+          <IconButton onClick={fetchProfile} size="small">
+            <Refresh />
+          </IconButton>
+        </Tooltip>
       </Box>
 
-      {/* Profile Section */}
-      <Grid container spacing={3} mb={4}>
+      <Grid container spacing={3}>
+
+        {/* ── Profile card ─────────────────────────────────────────────── */}
         <Grid item xs={12} md={4}>
-          <Card>
+          <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3 }}>
             <CardContent>
-              <Box display="flex" alignItems="center" mb={2}>
-                <Avatar sx={{ width: 64, height: 64, mr: 2, bgcolor: 'primary.main' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                <Avatar sx={{ width: 56, height: 56, bgcolor: 'primary.main', borderRadius: 2 }}>
                   <Person fontSize="large" />
                 </Avatar>
                 <Box>
-                  <Typography variant="h6">{tenantProfile?.name || getUserName()}</Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    {profile?.role?.toUpperCase()}
+                  <Typography variant="h6" fontWeight={700}>
+                    {tenantProfile?.name || getUserName()}
+                  </Typography>
+                  <Chip label="Tenant" size="small" color="primary" variant="outlined" />
+                </Box>
+              </Box>
+              <Divider sx={{ my: 1.5 }} />
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Phone sx={{ fontSize: 16, color: 'text.secondary' }} />
+                  <Typography variant="body2">
+                    {tenantProfile?.phone_number || 'Not provided'}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Email sx={{ fontSize: 16, color: 'text.secondary' }} />
+                  <Typography variant="body2">
+                    {tenantProfile?.email || user?.email || 'Not provided'}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CalendarToday sx={{ fontSize: 16, color: 'text.secondary' }} />
+                  <Typography variant="body2">
+                    Joined: {tenantProfile?.joining_date
+                      ? new Date(tenantProfile.joining_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+                      : 'N/A'}
                   </Typography>
                 </Box>
               </Box>
-              <Divider sx={{ my: 2 }} />
-              <Box>
-                <Typography variant="body2" display="flex" alignItems="center" mb={1}>
-                  <Phone sx={{ fontSize: 16, mr: 1 }} />
-                  {tenantProfile?.phone_number || 'N/A'}
-                </Typography>
-                <Typography variant="body2" display="flex" alignItems="center" mb={1}>
-                  <Email sx={{ fontSize: 16, mr: 1 }} />
-                  {tenantProfile?.email || user?.email}
-                </Typography>
-                <Typography variant="body2" display="flex" alignItems="center" mb={1}>
-                  <CalendarToday sx={{ fontSize: 16, mr: 1 }} />
-                  Joined: {tenantProfile?.date_of_joining ? 
-                    new Date(tenantProfile.date_of_joining).toLocaleDateString() : 'N/A'}
-                </Typography>
-              </Box>
             </CardContent>
           </Card>
         </Grid>
 
+        {/* ── Room card ────────────────────────────────────────────────── */}
         <Grid item xs={12} md={4}>
-          <Card>
+          <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3 }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom display="flex" alignItems="center">
-                <Home sx={{ mr: 1 }} />
-                Room Information
+              <Typography variant="subtitle1" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <Home color="primary" /> Room Information
               </Typography>
-              <Divider sx={{ my: 2 }} />
-              <Box>
-                <Typography variant="body2" mb={1}>
-                  <strong>Room:</strong> {roomDetails?.room_name || 'N/A'}
-                </Typography>
-                <Typography variant="body2" mb={1}>
-                  <strong>Type:</strong> {roomDetails?.room_type || 'N/A'}
-                </Typography>
-                <Typography variant="body2" mb={1}>
-                  <strong>Rent:</strong> ₹{roomDetails?.rent_amount?.toLocaleString() || 0}/month
-                </Typography>
-                <Typography variant="body2" mb={1} display="flex" alignItems="center">
-                  <LocationOn sx={{ fontSize: 16, mr: 0.5 }} />
-                  {roomDetails?.branch_name || 'N/A'}
-                </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  {roomDetails?.branch_address || 'Address not available'}
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom display="flex" alignItems="center">
-                <AccountBalance sx={{ mr: 1 }} />
-                Quick Actions
-              </Typography>
-              <Divider sx={{ my: 2 }} />
-              <Box display="flex" flexDirection="column" gap={1}>
-                <Button 
-                  variant="outlined" 
-                  startIcon={<Add />}
-                  fullWidth
-                  onClick={() => setOpenRequestDialog(true)}
-                >
-                  New Service Request
-                </Button>
-                <Button 
-                  variant="outlined" 
-                  startIcon={<Payment />}
-                  fullWidth
-                  onClick={() => navigate('/payments')}
-                >
-                  View Payments
-                </Button>
-                <Button 
-                  variant="outlined" 
-                  startIcon={<ListAlt />}
-                  fullWidth
-                  onClick={() => navigate('/my-requests')}
-                >
-                  My Requests
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Statistics Cards */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard 
-            title="Total Requests" 
-            value={statistics.totalRequests}
-            icon={<ListAlt />}
-            color="primary"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard 
-            title="Pending Requests" 
-            value={statistics.pendingRequests}
-            icon={<Warning />}
-            color="warning"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard 
-            title="Resolved Requests" 
-            value={statistics.resolvedRequests}
-            icon={<CheckCircle />}
-            color="success"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard 
-            title="Payment Status" 
-            value={statistics.pendingPayments}
-            icon={<Payment />}
-            color={statistics.pendingPayments > 0 ? "error" : "success"}
-            subtitle={statistics.pendingPayments > 0 ? "Pending" : "Up to date"}
-          />
-        </Grid>
-      </Grid>
-
-      <Grid container spacing={3}>
-        {/* Recent Service Requests */}
-        <Grid item xs={12} lg={8}>
-          <Card>
-            <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">My Service Requests</Typography>
-                <Button 
-                  startIcon={<Add />} 
-                  variant="contained" 
-                  size="small"
-                  onClick={() => setOpenRequestDialog(true)}
-                >
-                  New Request
-                </Button>
-              </Box>
-              <TableContainer sx={{ maxHeight: 400 }}>
-                <Table stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Request</TableCell>
-                      <TableCell>Type</TableCell>
-                      <TableCell>Priority</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Date</TableCell>
-                      <TableCell align="center">Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {serviceRequests.map((request) => (
-                      <TableRow key={request.id} hover>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight="medium">
-                            {request.title}
-                          </Typography>
-                          <Typography variant="caption" color="textSecondary">
-                            {request.description?.substring(0, 50)}...
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip 
-                            label={request.request_type_display} 
-                            variant="outlined" 
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Box display="flex" alignItems="center">
-                            {getPriorityIcon(request.priority)}
-                            <Typography variant="body2" ml={1}>
-                              {request.priority_display}
-                            </Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          {getStatusChip(request.status)}
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="textSecondary">
-                            {new Date(request.created_at).toLocaleDateString()}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="center">
-                          <Tooltip title="View Details">
-                            <IconButton 
-                              size="small" 
-                              onClick={() => navigate(`/requests/${request.id}`)}
-                            >
-                              <Visibility />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {serviceRequests.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={6} align="center">
-                          <Typography variant="body2" color="textSecondary">
-                            No service requests yet. Create your first request!
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Recent Payments */}
-        <Grid item xs={12} lg={4}>
-          <Card>
-            <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">Recent Payments</Typography>
-                <Button 
-                  startIcon={<Payment />} 
-                  variant="outlined" 
-                  size="small"
-                  onClick={() => navigate('/payments')}
-                >
-                  View All
-                </Button>
-              </Box>
-              <List dense sx={{ maxHeight: 350, overflowY: 'auto' }}>
-                {recentPayments.map((payment) => (
-                  <ListItem key={payment.id} divider>
-                    <ListItemIcon>
-                      <Payment color={payment.status === 'paid' ? 'success' : 'warning'} />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={
-                        <Typography variant="body2" fontWeight="medium">
-                          ₹{payment.amount?.toLocaleString()}
-                        </Typography>
-                      }
-                      secondary={
-                        <Box>
-                          <Typography variant="caption" color="textSecondary">
-                            {payment.month} {payment.year}
-                          </Typography>
-                          <br />
-                          {getStatusChip(payment.status)}
-                        </Box>
-                      }
-                    />
-                  </ListItem>
-                ))}
-                {recentPayments.length === 0 && (
-                  <ListItem>
-                    <ListItemText 
-                      primary="No payment records"
-                      secondary="Payment history will appear here"
-                    />
-                  </ListItem>
+              <Divider sx={{ mb: 1.5 }} />
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography variant="body2" color="text.secondary">Room</Typography>
+                  <Typography variant="body2" fontWeight={600}>
+                    {tenantProfile?.room_display || 'Not assigned'}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography variant="body2" color="text.secondary">Branch</Typography>
+                  <Typography variant="body2" fontWeight={600}>
+                    {tenantProfile?.branch_name || '—'}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography variant="body2" color="text.secondary">Stay Type</Typography>
+                  <Typography variant="body2" fontWeight={600} sx={{ textTransform: 'capitalize' }}>
+                    {tenantProfile?.stay_type || '—'}
+                  </Typography>
+                </Box>
+                {rs?.agreed_rent && (
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2" color="text.secondary">Monthly Rent</Typography>
+                    <Typography variant="body2" fontWeight={600}>
+                      ₹{Number(rs.agreed_rent).toLocaleString('en-IN')}
+                    </Typography>
+                  </Box>
                 )}
-              </List>
+              </Box>
             </CardContent>
           </Card>
         </Grid>
-      </Grid>
 
-      {/* New Request Dialog */}
-      <Dialog 
-        open={openRequestDialog} 
-        onClose={() => setOpenRequestDialog(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Create New Service Request</DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 1 }}>
-            <FormControl fullWidth margin="normal">
-              <InputLabel>Request Type</InputLabel>
-              <Select
-                value={newRequest.request_type}
-                onChange={(e) => setNewRequest({...newRequest, request_type: e.target.value})}
-                label="Request Type"
-              >
-                <MenuItem value="maintenance">Maintenance</MenuItem>
-                <MenuItem value="complaint">Complaint</MenuItem>
-                <MenuItem value="service">Service</MenuItem>
-                <MenuItem value="payment">Payment Issue</MenuItem>
-                <MenuItem value="other">Other</MenuItem>
-              </Select>
-            </FormControl>
-
-            <FormControl fullWidth margin="normal">
-              <InputLabel>Priority</InputLabel>
-              <Select
-                value={newRequest.priority}
-                onChange={(e) => setNewRequest({...newRequest, priority: e.target.value})}
-                label="Priority"
-              >
-                <MenuItem value="low">Low</MenuItem>
-                <MenuItem value="medium">Medium</MenuItem>
-                <MenuItem value="high">High</MenuItem>
-                <MenuItem value="urgent">Urgent</MenuItem>
-              </Select>
-            </FormControl>
-
-            <TextField
-              fullWidth
-              margin="normal"
-              label="Title"
-              value={newRequest.title}
-              onChange={(e) => setNewRequest({...newRequest, title: e.target.value})}
-              placeholder="Brief description of the issue"
-            />
-
-            <TextField
-              fullWidth
-              margin="normal"
-              label="Description"
-              multiline
-              rows={4}
-              value={newRequest.description}
-              onChange={(e) => setNewRequest({...newRequest, description: e.target.value})}
-              placeholder="Detailed description of the issue"
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenRequestDialog(false)}>Cancel</Button>
-          <Button 
-            onClick={handleSubmitRequest}
-            variant="contained"
-            startIcon={<Send />}
-            disabled={!newRequest.request_type || !newRequest.title || !newRequest.description}
+        {/* ── Current month rent status card ───────────────────────────── */}
+        <Grid item xs={12} md={4}>
+          <Card
+            elevation={0}
+            sx={{
+              border: '1px solid',
+              borderColor: {
+                PAID: 'success.light', OVERDUE: 'error.light',
+                PARTIAL: 'warning.light', PENDING: '#e2e8f0',
+              }[rs?.rent_status] || '#e2e8f0',
+              borderRadius: 3,
+              height: '100%',
+            }}
           >
-            Submit Request
-          </Button>
-        </DialogActions>
-      </Dialog>
+            <CardContent>
+              <Typography variant="subtitle1" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <Payment color="primary" /> Rent — {rs?.for_month_display || 'This Month'}
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+
+              {rs ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                    <RentStatusChip status={rs.rent_status} due={rs.due} />
+                  </Box>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    {rs.agreed_rent != null && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" color="text.secondary">Rent due</Typography>
+                        <Typography variant="body2">₹{Number(rs.agreed_rent).toLocaleString('en-IN')}</Typography>
+                      </Box>
+                    )}
+                    {rs.total_paid > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" color="text.secondary">Paid</Typography>
+                        <Typography variant="body2" color="success.main" fontWeight={600}>
+                          ₹{Number(rs.total_paid).toLocaleString('en-IN')}
+                        </Typography>
+                      </Box>
+                    )}
+                    {rs.due > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" color="text.secondary">Outstanding</Typography>
+                        <Typography variant="body2" color="error.main" fontWeight={700}>
+                          ₹{Number(rs.due).toLocaleString('en-IN')}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary" textAlign="center">
+                  Rent information not available
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* ── Rent Ledger (collapsible) ─────────────────────────────────── */}
+        <Grid item xs={12}>
+          <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3 }}>
+            <CardContent
+              sx={{ cursor: 'pointer', userSelect: 'none' }}
+              onClick={handleToggleLedger}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="subtitle1" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Payment color="primary" /> Payment History
+                  {ledgerSummary && (
+                    <Chip
+                      label={`${ledgerSummary.overdue_months_count} overdue`}
+                      color={ledgerSummary.overdue_months_count > 0 ? 'error' : 'success'}
+                      size="small"
+                      sx={{ ml: 1 }}
+                    />
+                  )}
+                </Typography>
+                <IconButton size="small" onClick={handleToggleLedger}>
+                  {ledgerOpen ? <ExpandLess /> : <ExpandMore />}
+                </IconButton>
+              </Box>
+
+              {ledgerSummary && !ledgerOpen && (
+                <Box sx={{ display: 'flex', gap: 3, mt: 1, flexWrap: 'wrap' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Total paid: <strong>₹{Number(ledgerSummary.total_paid).toLocaleString('en-IN')}</strong>
+                  </Typography>
+                  {ledgerSummary.total_due > 0 && (
+                    <Typography variant="body2" color="error.main">
+                      Outstanding: <strong>₹{Number(ledgerSummary.total_due).toLocaleString('en-IN')}</strong>
+                    </Typography>
+                  )}
+                </Box>
+              )}
+            </CardContent>
+
+            <Collapse in={ledgerOpen} timeout="auto" unmountOnExit>
+              <Divider />
+              <CardContent sx={{ pt: 0, pb: 1 }}>
+
+                {loadingLedger && (
+                  <Box sx={{ py: 3 }}>
+                    <LinearProgress sx={{ borderRadius: 2 }} />
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      Loading payment history…
+                    </Typography>
+                  </Box>
+                )}
+
+                {ledgerError && (
+                  <Alert
+                    severity="error"
+                    action={<Button size="small" onClick={fetchLedger}>Retry</Button>}
+                    sx={{ my: 2, borderRadius: 2 }}
+                  >
+                    {ledgerError}
+                  </Alert>
+                )}
+
+                {!loadingLedger && !ledgerError && ledger.length > 0 && (
+                  <>
+                    {/* Summary banner */}
+                    {ledgerSummary && (
+                      <Box sx={{ display: 'flex', gap: 3, py: 2, flexWrap: 'wrap' }}>
+                        <Typography variant="body2">
+                          Months tracked: <strong>{ledgerSummary.total_months}</strong>
+                        </Typography>
+                        <Typography variant="body2" color="success.main">
+                          Total paid: <strong>₹{Number(ledgerSummary.total_paid).toLocaleString('en-IN')}</strong>
+                        </Typography>
+                        {ledgerSummary.total_due > 0 && (
+                          <Typography variant="body2" color="error.main">
+                            Outstanding: <strong>₹{Number(ledgerSummary.total_due).toLocaleString('en-IN')}</strong>
+                          </Typography>
+                        )}
+                        {ledgerSummary.overdue_months_count > 0 && (
+                          <Typography variant="body2" color="error.main">
+                            Overdue months: <strong>{ledgerSummary.overdue_months_count}</strong>
+                          </Typography>
+                        )}
+                      </Box>
+                    )}
+
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow sx={{ backgroundColor: '#f8fafc' }}>
+                            <TableCell><strong>Month</strong></TableCell>
+                            <TableCell align="right"><strong>Rent</strong></TableCell>
+                            <TableCell align="right"><strong>Paid</strong></TableCell>
+                            <TableCell align="right"><strong>Due</strong></TableCell>
+                            <TableCell><strong>Status</strong></TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {ledger.map((entry) => (
+                            <LedgerRow key={entry.for_month} entry={entry} />
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </>
+                )}
+
+                {!loadingLedger && !ledgerError && ledger.length === 0 && (
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
+                    No payment history found.
+                  </Typography>
+                )}
+              </CardContent>
+            </Collapse>
+          </Card>
+        </Grid>
+
+      </Grid>
     </Box>
   );
 };

@@ -25,11 +25,34 @@ import {
  * Reusable Tenant Table Component
  * Used by both Active and Vacated tenant tabs
  */
+// Rent status badge for the management table
+function RentStatusBadge({ rentStatus }) {
+  if (!rentStatus) return <Typography variant="body2" color="text.secondary">—</Typography>;
+
+  const cfg = {
+    PAID:    { label: '✓ Paid',         color: 'success' },
+    PARTIAL: { label: `₹${rentStatus.due?.toLocaleString('en-IN')} Due`, color: 'warning' },
+    PENDING: { label: 'Pending',         color: 'default' },
+    OVERDUE: { label: `₹${rentStatus.due?.toLocaleString('en-IN')} Due`, color: 'error' },
+    UNKNOWN: { label: 'No rent set',     color: 'default' },
+  }[rentStatus.rent_status] || { label: rentStatus.rent_status, color: 'default' };
+
+  return (
+    <Chip
+      label={cfg.label}
+      color={cfg.color}
+      size="small"
+      sx={{ fontWeight: 600, fontSize: '0.72rem' }}
+    />
+  );
+}
+
 function TenantTable({
   tenants,
   loading,
   readOnly = false,
   showVacatedDate = false,
+  showRentStatus = false,
   canEdit = true,
   canDelete = true,
   onView,
@@ -93,6 +116,7 @@ function TenantTable({
             <TableCell><strong>Stay Type</strong></TableCell>
             <TableCell><strong>Joined</strong></TableCell>
             {showVacatedDate && <TableCell><strong>Vacated</strong></TableCell>}
+            {showRentStatus && <TableCell><strong>Rent (This Month)</strong></TableCell>}
             <TableCell align="center"><strong>Actions</strong></TableCell>
           </TableRow>
         </TableHead>
@@ -127,7 +151,13 @@ function TenantTable({
               {showVacatedDate && (
                 <TableCell>{formatDate(tenant.vacating_date)}</TableCell>
               )}
-              
+
+              {showRentStatus && (
+                <TableCell>
+                  <RentStatusBadge rentStatus={tenant.current_rent_status} />
+                </TableCell>
+              )}
+
               <TableCell align="center">
                 <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
                   {/* View button - always available */}

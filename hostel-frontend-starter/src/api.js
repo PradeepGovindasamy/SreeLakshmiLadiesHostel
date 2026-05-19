@@ -239,4 +239,16 @@ export const managerAPI = {
     api.delete(`/api/v2/branches/${branchId}/managers/${assignmentId}/`),
 };
 
+/**
+ * Tenant self-service API — all calls derive tenant from request.user.
+ * No tenant ID is ever passed from the client for these endpoints.
+ */
+export const myAPI = {
+  profile:    () => api.get('/api/my/profile/'),
+  rentStatus: (month) =>
+    api.get('/api/my/rent-status/', month ? { params: { month } } : {}),
+  rentLedger: () => api.get('/api/my/rent-ledger/'),
+  payments:   () => api.get('/api/my/payments/'),
+};
+
 export default api;

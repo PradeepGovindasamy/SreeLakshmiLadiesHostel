@@ -4,7 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import BranchViewSet, RoomViewSet, TenantViewSet, RoomOccupancyViewSet, RentPaymentViewSet
 # from .views_tenant_requests import TenantServiceRequestViewSet  # Temporarily commented out
 from .views_auth import (
-    login_view, user_detail_view, user_profile_view, 
+    login_view, user_detail_view, user_profile_view,
     UserManagementViewSet, available_branches, CustomTokenObtainPairView,
     create_user_with_profile_standalone, password_reset_request, password_reset_confirm
 )
@@ -12,6 +12,7 @@ from .views_enhanced import (
     EnhancedBranchViewSet, EnhancedRoomViewSet, EnhancedTenantViewSet,
     EnhancedRoomOccupancyViewSet, EnhancedRentPaymentViewSet
 )
+from .views_my import my_profile, my_rent_status, my_rent_ledger, my_payments
 
 # Create routers for different API versions
 router = DefaultRouter()
@@ -37,6 +38,12 @@ user_router = DefaultRouter()
 user_router.register(r'users', UserManagementViewSet, basename='users')
 
 urlpatterns = [
+    # ── Tenant self-service (identity derived from request.user, no ID in URL) ──
+    path('my/profile/', my_profile, name='my-profile'),
+    path('my/rent-status/', my_rent_status, name='my-rent-status'),
+    path('my/rent-ledger/', my_rent_ledger, name='my-rent-ledger'),
+    path('my/payments/', my_payments, name='my-payments'),
+
     # Authentication endpoints (expected by frontend)
     path('auth/login/', login_view, name='auth-login'),
     path('auth/user/', user_detail_view, name='auth-user'),

@@ -269,6 +269,7 @@ function ActiveTenantsSection() {
           loading={loading}
           readOnly={false}
           showVacatedDate={false}
+          showRentStatus={true}
           canEdit={canEdit}
           canDelete={canDelete}
           onView={handleView}
