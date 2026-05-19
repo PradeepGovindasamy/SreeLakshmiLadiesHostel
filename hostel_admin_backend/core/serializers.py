@@ -200,9 +200,12 @@ class TenantSerializer(serializers.ModelSerializer):
     branch_name = serializers.CharField(source='room.branch.name', read_only=True)
     stay_type_display = serializers.CharField(source='get_stay_type_display', read_only=True)
     id_proof_type_display = serializers.CharField(source='get_id_proof_type_display', read_only=True)
+    # is_active kept for backward-compat; use status for new code
     is_active = serializers.SerializerMethodField()
+    # Canonical lifecycle status: ACTIVE | VACATED | PENDING
+    status = serializers.SerializerMethodField()
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
-    
+
     class Meta:
         model = Tenant
         fields = [
@@ -213,26 +216,42 @@ class TenantSerializer(serializers.ModelSerializer):
             'id_proof_type', 'id_proof_type_display', 'id_proof_number',
             'father_name', 'father_aadhar', 'mother_name', 'mother_aadhar',
             'guardian_name', 'guardian_aadhar',
-            'is_active', 'created_at', 'updated_at', 'created_by', 'created_by_name'
+            'status', 'is_active',
+            'created_at', 'updated_at', 'created_by', 'created_by_name',
         ]
         read_only_fields = [
             'id', 'user', 'room_detail', 'room_display', 'branch_name',
-            'stay_type_display', 'id_proof_type_display', 'is_active',
-            'created_at', 'updated_at', 'created_by_name'
+            'stay_type_display', 'id_proof_type_display',
+            'status', 'is_active',
+            'created_at', 'updated_at', 'created_by_name',
         ]
         extra_kwargs = {
             'room': {'write_only': True},
-            'created_by': {'write_only': True}
+            'created_by': {'write_only': True},
         }
-    
+
     def get_room_display(self, obj):
         if obj.room and obj.room.branch:
             return f"{obj.room.room_name} - {obj.room.branch.name}"
         elif obj.room:
             return obj.room.room_name
         return "Not Assigned"
-    
+
+    def get_status(self, obj):
+        """
+        Canonical lifecycle status derived from date fields.
+          VACATED  – vacating_date is set (tenant has left)
+          ACTIVE   – joining_date is set, vacating_date is null (currently resident)
+          PENDING  – neither date is set (record created, not yet moved in)
+        """
+        if obj.vacating_date is not None:
+            return 'VACATED'
+        if obj.joining_date is not None:
+            return 'ACTIVE'
+        return 'PENDING'
+
     def get_is_active(self, obj):
+        """Backward-compatible boolean derived from status."""
         return obj.vacating_date is None
     
     def validate(self, data):

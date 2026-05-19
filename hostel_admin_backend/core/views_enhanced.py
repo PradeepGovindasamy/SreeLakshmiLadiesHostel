@@ -482,42 +482,79 @@ class EnhancedRoomViewSet(viewsets.ModelViewSet):
 
 class EnhancedTenantViewSet(viewsets.ModelViewSet):
     """
-    Enhanced Tenant ViewSet with role-based access
+    Enhanced Tenant ViewSet with role-based access.
+
+    Supported query parameters
+    --------------------------
+    status   : active | vacated | pending   (lifecycle filter)
+    branch   : <branch_id> | all            (branch filter; ignored for tenant role)
+    search   : <string>                     (name / phone / email icontains)
+    page     : <int>                        (pagination; works with DRF PageNumberPagination)
+    page_size: <int>
     """
     serializer_class = TenantSerializer
     permission_classes = [RoleBasedPermission]
-    
+
+    # ── Status filter mapping ──────────────────────────────────────────────
+    _STATUS_FILTERS = {
+        'active':  {'joining_date__isnull': False, 'vacating_date__isnull': True},
+        'vacated': {'vacating_date__isnull': False},
+        'pending': {'joining_date__isnull': True},
+    }
+
     def get_queryset(self):
         user = self.request.user
-        
+
         if not hasattr(user, 'profile'):
             return Tenant.objects.none()
-        
+
         user_role = user.profile.role
-        
+
+        # ── 1. Role-based base queryset ────────────────────────────────────
         if user_role == 'admin':
-            return Tenant.objects.all().select_related('user', 'room', 'room__branch')
+            queryset = Tenant.objects.all()
 
         elif user_role == 'owner':
-            return Tenant.objects.filter(
-                room__branch__owner=user
-            ).select_related('user', 'room', 'room__branch')
-        
-        # Wardens see tenants in assigned branches
+            queryset = Tenant.objects.filter(room__branch__owner=user)
+
         elif user_role == 'warden':
             from .models import WardenAssignment
             assigned_branches = WardenAssignment.objects.filter(
                 warden=user, is_active=True
             ).values_list('branch', flat=True)
-            return Tenant.objects.filter(
-                room__branch__in=assigned_branches
-            ).select_related('user', 'room', 'room__branch')
-        
-        # Tenants see only themselves
+            queryset = Tenant.objects.filter(room__branch__in=assigned_branches)
+
         elif user_role == 'tenant':
-            return Tenant.objects.filter(user=user).select_related('user', 'room', 'room__branch')
-        
-        return Tenant.objects.none()
+            # Tenants always see only themselves; skip further param filters
+            return (
+                Tenant.objects
+                .filter(user=user)
+                .select_related('user', 'room', 'room__branch')
+            )
+
+        else:
+            return Tenant.objects.none()
+
+        # ── 2. Lifecycle status filter ─────────────────────────────────────
+        status_param = self.request.query_params.get('status', '').strip().lower()
+        if status_param in self._STATUS_FILTERS:
+            queryset = queryset.filter(**self._STATUS_FILTERS[status_param])
+
+        # ── 3. Branch filter ───────────────────────────────────────────────
+        branch_param = self.request.query_params.get('branch', '').strip()
+        if branch_param and branch_param != 'all':
+            queryset = queryset.filter(room__branch_id=branch_param)
+
+        # ── 4. Full-text search (name / phone / email) ─────────────────────
+        search_param = self.request.query_params.get('search', '').strip()
+        if search_param:
+            queryset = queryset.filter(
+                Q(name__icontains=search_param)
+                | Q(phone_number__icontains=search_param)
+                | Q(email__icontains=search_param)
+            )
+
+        return queryset.select_related('user', 'room', 'room__branch')
     
     def perform_create(self, serializer):
         # Set created_by to current user

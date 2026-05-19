@@ -61,9 +61,16 @@ function TenantDetailsDialog({ open, onClose, tenant, readOnly = false }) {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <PersonIcon />
           <Typography variant="h6">Tenant Details</Typography>
-          {tenant.vacating_date && (
-            <Chip label="Vacated" color="default" size="small" />
-          )}
+          {/* Use backend-provided status field; fall back to date check for safety */}
+          {(() => {
+            const s = tenant.status || (tenant.vacating_date ? 'VACATED' : tenant.joining_date ? 'ACTIVE' : 'PENDING');
+            const chipProps = {
+              ACTIVE:   { label: 'Active',   color: 'success' },
+              VACATED:  { label: 'Vacated',  color: 'default' },
+              PENDING:  { label: 'Pending',  color: 'warning' },
+            }[s] || { label: s, color: 'default' };
+            return <Chip {...chipProps} size="small" />;
+          })()}
         </Box>
       </DialogTitle>
       
@@ -142,12 +149,12 @@ function TenantDetailsDialog({ open, onClose, tenant, readOnly = false }) {
                     value={formatDate(tenant.joining_date)} 
                   />
                 </Grid>
-                {tenant.vacating_date && (
+                {(tenant.status === 'VACATED' || tenant.vacating_date) && (
                   <Grid item xs={12} sm={6}>
-                    <DetailRow 
-                      icon={<CalendarIcon />} 
-                      label="Vacating Date" 
-                      value={formatDate(tenant.vacating_date)} 
+                    <DetailRow
+                      icon={<CalendarIcon />}
+                      label="Vacating Date"
+                      value={formatDate(tenant.vacating_date)}
                     />
                   </Grid>
                 )}

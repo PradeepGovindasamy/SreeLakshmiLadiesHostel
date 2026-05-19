@@ -135,9 +135,8 @@ function SimpleTenants() {
     try {
       setActiveLoading(true);
       const response = await enhancedAPI.tenants.list({ status: 'active' });
-      // Filter to ensure only active tenants (no vacating_date)
-      const activeOnly = (response.data || []).filter(tenant => !tenant.vacating_date);
-      setActiveTenants(activeOnly);
+      // Backend now filters by status=active; no client-side date check needed
+      setActiveTenants(response.data || []);
     } catch (err) {
       console.error('Error fetching active tenants:', err);
       setError('Failed to load active tenants. Please try again.');
@@ -150,9 +149,8 @@ function SimpleTenants() {
     try {
       setVacatedLoading(true);
       const response = await enhancedAPI.tenants.list({ status: 'vacated' });
-      // Filter to ensure only vacated tenants (has vacating_date)
-      const vacatedOnly = (response.data || []).filter(tenant => tenant.vacating_date);
-      setVacatedTenants(vacatedOnly);
+      // Backend now filters by status=vacated; no client-side date check needed
+      setVacatedTenants(response.data || []);
       setVacatedDataLoaded(true);
     } catch (err) {
       console.error('Error fetching vacated tenants:', err);
@@ -302,6 +300,9 @@ function SimpleTenants() {
   };
 
   const getTenantStatus = (tenant) => {
+    // Prefer the canonical status field returned by the backend serializer.
+    // Fall back to date-based derivation for any older cached responses.
+    if (tenant.status) return tenant.status.toLowerCase();
     if (tenant.vacating_date) return 'vacated';
     if (tenant.joining_date) return 'active';
     return 'pending';
@@ -344,11 +345,8 @@ function SimpleTenants() {
     return matchesProperty && matchesRoom && matchesSearch;
   });
 
-  // Filter vacated tenants
+  // Filter vacated tenants (backend already constrains to status=VACATED)
   const filteredVacatedTenants = vacatedTenants.filter(tenant => {
-    // MUST have vacating_date to be in vacated section
-    if (!tenant.vacating_date) return false;
-    
     const branchId = tenant.room_detail?.branch || rooms.find(r => r.id === tenant.room)?.branch;
     const roomId = tenant.room_detail?.id || tenant.room;
     

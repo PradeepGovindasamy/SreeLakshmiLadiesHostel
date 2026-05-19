@@ -192,30 +192,6 @@ class Tenant(models.Model):
     def __str__(self):
         return self.name
 
-    class Meta:
-        indexes = [
-            # Index for active tenant queries (most frequent)
-            models.Index(
-                fields=['vacating_date', 'joining_date'],
-                name='tenant_active_idx'
-            ),
-            # Index for vacated tenant queries (sorted by vacating_date DESC)
-            models.Index(
-                fields=['-vacating_date'],
-                name='tenant_vacated_idx'
-            ),
-            # Composite index for room-based queries
-            models.Index(
-                fields=['room', 'vacating_date'],
-                name='tenant_room_status_idx'
-            ),
-            # Index for search queries
-            models.Index(
-                fields=['name', 'phone_number'],
-                name='tenant_search_idx'
-            ),
-        ]
-
     def save(self, *args, **kwargs):
         # Validate room capacity before saving
         if self.room and self.room.sharing_type:
@@ -255,12 +231,39 @@ class Tenant(models.Model):
         """Override delete to update room status"""
         room = self.room
         super().delete(*args, **kwargs)
-        # Update room status after tenant is deleted
         if room:
             room.update_availability()
-    
+
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            # Covers status=active queries: joining_date IS NOT NULL AND vacating_date IS NULL
+            models.Index(
+                fields=['vacating_date', 'joining_date'],
+                name='tenant_active_idx',
+            ),
+            # Covers status=vacated queries ordered by most-recent vacating date
+            models.Index(
+                fields=['-vacating_date'],
+                name='tenant_vacated_idx',
+            ),
+            # Covers per-room active-tenant lookups (used in capacity checks)
+            models.Index(
+                fields=['room', 'vacating_date'],
+                name='tenant_room_status_idx',
+            ),
+            # Covers name/phone full-text search
+            models.Index(
+                fields=['name', 'phone_number'],
+                name='tenant_search_idx',
+            ),
+            # Standalone phone index for phone-only lookups (future mobile app)
+            models.Index(
+                fields=['phone_number'],
+                name='tenant_phone_idx',
+            ),
+        ]
+
 
 class RoomOccupancy(models.Model):
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='occupancies')
