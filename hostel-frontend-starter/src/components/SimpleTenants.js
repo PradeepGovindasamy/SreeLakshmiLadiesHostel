@@ -267,6 +267,12 @@ function SimpleTenants() {
     setCheckoutDialogOpen(true);
   };
 
+  const extractApiError = (err, fallback) => {
+    const data = err?.response?.data;
+    if (!data) return fallback;
+    return data.error || data.detail || data.non_field_errors?.[0] || fallback;
+  };
+
   const handleCheckoutConfirm = async () => {
     if (!checkoutTenant || !vacatingDate) {
       setAlert({ open: true, message: 'Please select a vacating date', severity: 'error' });
@@ -281,8 +287,12 @@ function SimpleTenants() {
       setVacatingDate('');
       fetchData();
     } catch (err) {
-      console.error('Error checking out tenant:', err);
-      setAlert({ open: true, message: 'Failed to checkout tenant', severity: 'error' });
+      console.error('Checkout tenant error:', {
+        tenantId: checkoutTenant?.id,
+        status: err?.response?.status,
+        data: err?.response?.data,
+      });
+      setAlert({ open: true, message: extractApiError(err, 'Failed to checkout tenant'), severity: 'error' });
     }
   };
 

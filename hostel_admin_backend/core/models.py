@@ -209,6 +209,18 @@ class Tenant(models.Model):
         # Save the tenant
         super().save(*args, **kwargs)
 
+        # Normalise vacating_date to a date object after save.
+        # Django writes the correct type to the DB but leaves the Python
+        # attribute as whatever was assigned (e.g. a string from request.data).
+        # Comparing a str to a date raises TypeError in Python 3, so we
+        # refresh the single field from DB to guarantee the correct type.
+        if self.pk and self.vacating_date is not None:
+            self.vacating_date = (
+                Tenant.objects.filter(pk=self.pk)
+                .values_list('vacating_date', flat=True)
+                .first()
+            )
+
         # RoomOccupancy logic
         if self.vacating_date and self.vacating_date <= timezone.now().date():
             RoomOccupancy.objects.filter(tenant=self).delete()

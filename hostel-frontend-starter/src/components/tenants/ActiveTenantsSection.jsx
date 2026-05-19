@@ -133,15 +133,29 @@ function ActiveTenantsSection() {
     }
   };
 
+  // Extract the most meaningful message from an Axios error response
+  const extractApiError = (error, fallback) => {
+    const data = error?.response?.data;
+    if (!data) return fallback;
+    // Backend returns { error: '...', detail: '...' } or DRF default strings
+    return data.error || data.detail || data.non_field_errors?.[0] || fallback;
+  };
+
   const handleDelete = async (tenant) => {
-    if (window.confirm(`Are you sure you want to delete "${tenant.name}"? Consider using Checkout instead to preserve history.`)) {
+    if (window.confirm(
+      `Are you sure you want to permanently delete "${tenant.name}"?\n\nConsider using Checkout instead to preserve history.`
+    )) {
       try {
         await enhancedAPI.tenants.delete(tenant.id);
         showAlert('Tenant deleted successfully');
         fetchActiveTenants();
       } catch (error) {
-        console.error('Error deleting tenant:', error);
-        showAlert('Failed to delete tenant', 'error');
+        console.error('Delete tenant error:', {
+          status: error?.response?.status,
+          data: error?.response?.data,
+          url: error?.config?.url,
+        });
+        showAlert(extractApiError(error, 'Failed to delete tenant'), 'error');
       }
     }
   };
@@ -165,10 +179,15 @@ function ActiveTenantsSection() {
       setCheckoutDialog(false);
       setCheckoutTenant(null);
       setVacatingDate('');
-      fetchActiveTenants(); // Refresh the list
+      fetchActiveTenants();
     } catch (error) {
-      console.error('Error checking out tenant:', error);
-      showAlert('Failed to checkout tenant', 'error');
+      console.error('Checkout tenant error:', {
+        tenantId: checkoutTenant?.id,
+        status: error?.response?.status,
+        data: error?.response?.data,
+        url: error?.config?.url,
+      });
+      showAlert(extractApiError(error, 'Failed to checkout tenant'), 'error');
     }
   };
 

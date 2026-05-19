@@ -1,4 +1,5 @@
 # core/views_enhanced.py
+import logging
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -10,6 +11,8 @@ from .serializers import (
     RoomOccupancySerializer, RentPaymentSerializer, UserProfileSerializer,
     WardenAssignmentSerializer
 )
+
+logger = logging.getLogger(__name__)
 
 
 class RoleBasedPermission(permissions.BasePermission):
@@ -37,8 +40,15 @@ class RoleBasedPermission(permissions.BasePermission):
                 return user_role in ['owner', 'admin']
 
             if view.__class__.__name__ in ['EnhancedRoomViewSet', 'EnhancedTenantViewSet']:
+                # Custom detail actions (checkout, reactivate, etc.) operate on an
+                # existing object identified by pk.  has_object_permission() already
+                # enforces warden constraints for those, so we only apply the strict
+                # branch-presence check for the 'create' action.
+                view_action = getattr(view, 'action', None)
+                if view_action and view_action != 'create':
+                    return True  # delegate to has_object_permission
+
                 if user_role == 'warden':
-                    # enforce can_manage_rooms / can_manage_tenants flag
                     perm_field = (
                         'can_manage_rooms'
                         if view.__class__.__name__ == 'EnhancedRoomViewSet'
@@ -49,6 +59,9 @@ class RoleBasedPermission(permissions.BasePermission):
                         or request.query_params.get('branch')
                     )
                     if not branch_id:
+                        logger.warning(
+                            'Warden %s attempted to create without branch_id', request.user
+                        )
                         return False
                     return WardenAssignment.objects.filter(
                         warden=request.user,
@@ -563,24 +576,23 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """Override create to add better error handling"""
         try:
-            print(f"Creating tenant with data: {request.data}")
+            logger.debug('Creating tenant with data: %s', request.data)
             serializer = self.get_serializer(data=request.data)
-            
+
             if not serializer.is_valid():
-                print(f"Serializer validation errors: {serializer.errors}")
+                logger.warning('Tenant create validation errors: %s', serializer.errors)
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            
+
             self.perform_create(serializer)
+            logger.info('Tenant created: %s by %s', serializer.data.get('name'), request.user)
             headers = self.get_success_headers(serializer.data)
             return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-            
-        except Exception as e:
-            print(f"Error creating tenant: {str(e)}")
-            import traceback
-            traceback.print_exc()
+
+        except Exception as exc:
+            logger.exception('Error creating tenant: %s', exc)
             return Response(
-                {'error': f'Failed to create tenant: {str(e)}'}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {'error': f'Failed to create tenant: {exc}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
     
     @action(detail=True, methods=['get'])
@@ -593,35 +605,81 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def checkout(self, request, pk=None):
-        """Check out a tenant (set vacating date)"""
+        """
+        Check out a tenant by setting vacating_date.
+        Body: { "vacating_date": "YYYY-MM-DD" }  (optional; defaults to today)
+        """
+        from datetime import date as date_type
         tenant = self.get_object()
-        
-        from datetime import date
-        vacating_date = request.data.get('vacating_date', date.today())
-        
-        tenant.vacating_date = vacating_date
-        tenant.save()
-        
+
+        if tenant.vacating_date:
+            return Response(
+                {
+                    'error': 'Tenant is already checked out.',
+                    'detail': f'vacating_date is already set to {tenant.vacating_date}.',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        raw_date = request.data.get('vacating_date')
+        if raw_date:
+            try:
+                from datetime import datetime
+                vacating_date = datetime.strptime(raw_date, '%Y-%m-%d').date()
+            except ValueError:
+                return Response(
+                    {'error': 'Invalid date format. Use YYYY-MM-DD.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            vacating_date = date_type.today()
+
+        try:
+            tenant.vacating_date = vacating_date
+            tenant.save()
+        except Exception as exc:
+            logger.exception(
+                'checkout failed for tenant %s (id=%s): %s', tenant.name, tenant.pk, exc
+            )
+            return Response(
+                {'error': 'Checkout failed.', 'detail': str(exc)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        logger.info(
+            'Tenant %s (id=%s) checked out on %s by %s',
+            tenant.name, tenant.pk, vacating_date, request.user,
+        )
         serializer = self.get_serializer(tenant)
         return Response({
             'message': 'Tenant checked out successfully',
-            'tenant': serializer.data
+            'tenant': serializer.data,
         })
-    
+
     @action(detail=True, methods=['post'])
     def reactivate(self, request, pk=None):
         """Reactivate a tenant (clear vacating date)"""
         tenant = self.get_object()
-        
+
         if not tenant.vacating_date:
             return Response(
                 {'error': 'Tenant is already active'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        tenant.vacating_date = None
-        tenant.save()
-        
+
+        try:
+            tenant.vacating_date = None
+            tenant.save()
+        except Exception as exc:
+            logger.exception(
+                'reactivate failed for tenant %s (id=%s): %s', tenant.name, tenant.pk, exc
+            )
+            return Response(
+                {'error': 'Reactivation failed.', 'detail': str(exc)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        logger.info('Tenant %s (id=%s) reactivated by %s', tenant.name, tenant.pk, request.user)
         serializer = self.get_serializer(tenant)
         return Response({
             'message': 'Tenant reactivated successfully',
@@ -629,14 +687,29 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
         })
     
     def destroy(self, request, *args, **kwargs):
-        """Override destroy to prevent hard delete - only soft delete allowed"""
-        return Response(
-            {
-                'error': 'Hard delete is not allowed. Use checkout action to mark tenant as vacated.',
-                'detail': 'To vacate a tenant, use POST /api/v2/tenants/{id}/checkout/ with vacating_date'
-            },
-            status=status.HTTP_403_FORBIDDEN
+        """
+        Hard delete a tenant record.
+        Allowed only for admin and owner roles.
+        Wardens and tenants should use the checkout action instead.
+        """
+        user_role = getattr(getattr(request.user, 'profile', None), 'role', None)
+        if user_role not in ('admin', 'owner'):
+            return Response(
+                {
+                    'error': 'Delete is not permitted for your role.',
+                    'detail': (
+                        'Use the Checkout action to mark a tenant as vacated. '
+                        'This preserves the full history.'
+                    ),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        tenant = self.get_object()
+        logger.info(
+            'Hard-deleting tenant %s (id=%s) by user %s',
+            tenant.name, tenant.pk, request.user,
         )
+        return super().destroy(request, *args, **kwargs)
 
 
 class EnhancedRoomOccupancyViewSet(viewsets.ModelViewSet):
