@@ -214,6 +214,19 @@ export const enhancedAPI = {
     create: (data) => api.post('/api/v2/payments/', data),
     getMonthlySummary: (params) => api.get('/api/v2/payments/monthly_summary/', { params }),
   },
+
+  foodMenu: {
+    list: (params = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return api.get(`/api/v2/food-menu/${qs ? '?' + qs : ''}`);
+    },
+    get: (id) => api.get(`/api/v2/food-menu/${id}/`),
+    create: (data) => api.post('/api/v2/food-menu/', data),
+    update: (id, data) => api.put(`/api/v2/food-menu/${id}/`, data),
+    delete: (id) => api.delete(`/api/v2/food-menu/${id}/`),
+    today: () => api.get('/api/v2/food-menu/today/'),
+    week: () => api.get('/api/v2/food-menu/week/'),
+  },
 };
 
 // Manager / Warden assignment API (active /api/v2/ endpoints)

@@ -585,11 +585,61 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
         return queryset.select_related('user', 'room', 'room__branch')
     
     def perform_create(self, serializer):
-        # Set created_by to current user
-        serializer.save(created_by=self.request.user)
-    
+        tenant = serializer.save(created_by=self.request.user)
+        credentials = self._auto_create_tenant_user(tenant)
+        # Stash credentials on the tenant instance so create() can include them
+        tenant._generated_credentials = credentials
+
+    def _auto_create_tenant_user(self, tenant):
+        """Create a Django User account for a newly added tenant.
+
+        Username  : phone number (stripped of spaces/dashes)
+        Password  : {username}@{birth_year}  (e.g. 9876543210@1995)
+        Returns a dict with the generated credentials, or None if skipped.
+        """
+        phone = (tenant.phone_number or '').strip().replace(' ', '').replace('-', '')
+        if not phone:
+            logger.warning('Tenant %s has no phone number; skipping user creation', tenant.pk)
+            return None
+
+        username = phone
+        dob = tenant.date_of_birth
+        birth_year = str(dob.year) if dob else '0000'
+        password = f"{username}@{birth_year}"
+
+        if User.objects.filter(username=username).exists():
+            # User already exists (e.g. re-adding the same tenant) — just link
+            existing_user = User.objects.get(username=username)
+            if not hasattr(existing_user, 'tenant_profile') or existing_user.tenant_profile is None:
+                tenant.user = existing_user
+                tenant.save(update_fields=['user'])
+            logger.info('Tenant user already exists for phone %s; linked to tenant %s', username, tenant.pk)
+            return None
+
+        name_parts = (tenant.name or '').split()
+        first_name = name_parts[0] if name_parts else ''
+        last_name = ' '.join(name_parts[1:]) if len(name_parts) > 1 else ''
+
+        user = User.objects.create_user(
+            username=username,
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+            email=tenant.email or '',
+        )
+        UserProfile.objects.create(
+            user=user,
+            role='tenant',
+            phone_number=phone,
+            must_change_password=True,
+        )
+        tenant.user = user
+        tenant.save(update_fields=['user'])
+        logger.info('Auto-created user "%s" for tenant %s', username, tenant.pk)
+        return {'username': username, 'password': password}
+
     def create(self, request, *args, **kwargs):
-        """Override create to add better error handling"""
+        """Override create to add better error handling and return generated credentials."""
         try:
             logger.debug('Creating tenant with data: %s', request.data)
             serializer = self.get_serializer(data=request.data)
@@ -601,7 +651,14 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
             self.perform_create(serializer)
             logger.info('Tenant created: %s by %s', serializer.data.get('name'), request.user)
             headers = self.get_success_headers(serializer.data)
-            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+            # Include generated login credentials in response so the UI can show them
+            response_data = dict(serializer.data)
+            tenant_instance = serializer.instance
+            creds = getattr(tenant_instance, '_generated_credentials', None)
+            if creds:
+                response_data['generated_credentials'] = creds
+            return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
 
         except Exception as exc:
             logger.exception('Error creating tenant: %s', exc)
@@ -1007,3 +1064,84 @@ class EnhancedRentPaymentViewSet(viewsets.ModelViewSet):
             'total_payments': summary['total_payments'] or 0,
             'payments': RentPaymentSerializer(payments, many=True).data
         })
+
+
+class FoodMenuViewSet(viewsets.ModelViewSet):
+    """CRUD for food menu.
+
+    Admin / Owner  — full create, update, delete.
+    Warden         — read-only.
+    Tenant         — read-only (only today + upcoming 7 days).
+    """
+    from .models import FoodMenu
+    from .serializers import FoodMenuSerializer
+
+    serializer_class = None   # set in get_serializer_class
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        from .serializers import FoodMenuSerializer
+        return FoodMenuSerializer
+
+    def get_queryset(self):
+        from .models import FoodMenu
+        from datetime import date, timedelta
+        role = getattr(self.request.user, 'profile', None)
+        role_name = role.role if role else None
+        qs = FoodMenu.objects.all()
+
+        # Tenants only see today and next 7 days
+        if role_name == 'tenant':
+            today = date.today()
+            qs = qs.filter(date__gte=today, date__lte=today + timedelta(days=7))
+
+        # Optional ?date=YYYY-MM-DD filter
+        date_param = self.request.query_params.get('date')
+        if date_param:
+            qs = qs.filter(date=date_param)
+
+        # Optional ?from=YYYY-MM-DD&to=YYYY-MM-DD range filter
+        from_date = self.request.query_params.get('from')
+        to_date = self.request.query_params.get('to')
+        if from_date:
+            qs = qs.filter(date__gte=from_date)
+        if to_date:
+            qs = qs.filter(date__lte=to_date)
+
+        return qs
+
+    def _check_write_permission(self):
+        role = getattr(self.request.user, 'profile', None)
+        role_name = role.role if role else None
+        if role_name not in ('admin', 'owner'):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Only admin and owners can manage the food menu.')
+
+    def perform_create(self, serializer):
+        self._check_write_permission()
+        serializer.save(created_by=self.request.user, updated_by=self.request.user)
+
+    def perform_update(self, serializer):
+        self._check_write_permission()
+        serializer.save(updated_by=self.request.user)
+
+    def perform_destroy(self, instance):
+        self._check_write_permission()
+        instance.delete()
+
+    @action(detail=False, methods=['get'], url_path='today')
+    def today(self, request):
+        """Return all meals for today grouped by meal_type."""
+        from datetime import date
+        from .serializers import FoodMenuSerializer
+        menus = FoodMenu.objects.filter(date=date.today())
+        return Response(FoodMenuSerializer(menus, many=True).data)
+
+    @action(detail=False, methods=['get'], url_path='week')
+    def week(self, request):
+        """Return meals for today + next 6 days grouped by date."""
+        from datetime import date, timedelta
+        from .serializers import FoodMenuSerializer
+        today = date.today()
+        menus = FoodMenu.objects.filter(date__gte=today, date__lte=today + timedelta(days=6))
+        return Response(FoodMenuSerializer(menus, many=True).data)

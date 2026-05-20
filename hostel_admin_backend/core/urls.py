@@ -6,11 +6,12 @@ from .views import BranchViewSet, RoomViewSet, TenantViewSet, RoomOccupancyViewS
 from .views_auth import (
     login_view, user_detail_view, user_profile_view,
     UserManagementViewSet, available_branches, CustomTokenObtainPairView,
-    create_user_with_profile_standalone, password_reset_request, password_reset_confirm
+    create_user_with_profile_standalone, password_reset_request, password_reset_confirm,
+    change_password
 )
 from .views_enhanced import (
     EnhancedBranchViewSet, EnhancedRoomViewSet, EnhancedTenantViewSet,
-    EnhancedRoomOccupancyViewSet, EnhancedRentPaymentViewSet
+    EnhancedRoomOccupancyViewSet, EnhancedRentPaymentViewSet, FoodMenuViewSet
 )
 from .views_my import my_profile, my_rent_status, my_rent_ledger, my_payments
 
@@ -32,6 +33,7 @@ enhanced_router.register(r'rooms', EnhancedRoomViewSet, basename='enhanced-rooms
 enhanced_router.register(r'tenants', EnhancedTenantViewSet, basename='enhanced-tenants')
 enhanced_router.register(r'occupancy', EnhancedRoomOccupancyViewSet, basename='enhanced-occupancy')
 enhanced_router.register(r'payments', EnhancedRentPaymentViewSet, basename='enhanced-payments')
+enhanced_router.register(r'food-menu', FoodMenuViewSet, basename='food-menu')
 
 # User management
 user_router = DefaultRouter()
@@ -51,9 +53,10 @@ urlpatterns = [
     path('auth/token/', CustomTokenObtainPairView.as_view(), name='auth-token'),
     path('auth/branches/', available_branches, name='auth-available-branches'),
     
-    # Password Reset endpoints
+    # Password endpoints
     path('auth/password-reset/', password_reset_request, name='password-reset-request'),
     path('auth/password-reset/confirm/', password_reset_confirm, name='password-reset-confirm'),
+    path('auth/change-password/', change_password, name='change-password'),
     
     # User creation endpoints (multiple approaches to ensure it works)
     path('users/create_with_profile/', UserManagementViewSet.as_view({'post': 'create_with_profile'}), name='create-user-with-profile'),

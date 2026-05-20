@@ -207,9 +207,13 @@ def login_view(request):
     serializer = CustomTokenObtainPairSerializer()
     token_data = serializer.get_token(user)
     
+    profile = getattr(user, 'profile', None)
+    must_change = profile.must_change_password if profile else False
+
     return Response({
         'access': str(token_data.access_token),
         'refresh': str(token_data),
+        'must_change_password': must_change,
         'user': {
             'id': user.id,
             'username': user.username,
@@ -218,11 +222,12 @@ def login_view(request):
             'last_name': user.last_name,
         },
         'profile': {
-            'role': user.profile.role if hasattr(user, 'profile') else 'tenant',
-            'role_display': user.profile.get_role_display() if hasattr(user, 'profile') else 'Tenant',
-            'phone_number': user.profile.phone_number if hasattr(user, 'profile') else '',
-            'branch_id': user.profile.branch.id if hasattr(user, 'profile') and user.profile.branch else None,
-            'branch_name': user.profile.branch.name if hasattr(user, 'profile') and user.profile.branch else None,
+            'role': profile.role if profile else 'tenant',
+            'role_display': profile.get_role_display() if profile else 'Tenant',
+            'phone_number': profile.phone_number if profile else '',
+            'branch_id': profile.branch.id if profile and profile.branch else None,
+            'branch_name': profile.branch.name if profile and profile.branch else None,
+            'must_change_password': must_change,
         }
     })
 
@@ -686,3 +691,38 @@ def password_reset_confirm(request):
             'error': 'Failed to reset password'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    """Allow a logged-in user to change their own password.
+
+    Clears must_change_password flag after a successful change.
+    Body: { current_password, new_password }
+    """
+    current_password = request.data.get('current_password', '').strip()
+    new_password = request.data.get('new_password', '').strip()
+
+    if not current_password or not new_password:
+        return Response({'error': 'current_password and new_password are required'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    if not request.user.check_password(current_password):
+        return Response({'error': 'Current password is incorrect'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    if len(new_password) < 8:
+        return Response({'error': 'New password must be at least 8 characters'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    request.user.set_password(new_password)
+    request.user.save()
+
+    # Clear the forced-change flag
+    profile = getattr(request.user, 'profile', None)
+    if profile and profile.must_change_password:
+        profile.must_change_password = False
+        profile.save(update_fields=['must_change_password'])
+
+    logger.info('Password changed by user %s', request.user.username)
+    return Response({'message': 'Password changed successfully'})

@@ -151,6 +151,7 @@ class Tenant(models.Model):
     )
     
     name = models.CharField(max_length=100, null=True, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
     address = models.TextField(null=True, blank=True)
     phone_number = models.CharField(max_length=15, null=True, blank=True)
     email = models.EmailField(blank=True)
@@ -355,6 +356,7 @@ class UserProfile(models.Model):
     branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True)
     
     is_active = models.BooleanField(default=True)
+    must_change_password = models.BooleanField(default=False)
     created_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -493,3 +495,34 @@ class BranchPermission(models.Model):
     class Meta:
         unique_together = ['user', 'branch']
         ordering = ['-granted_at']
+
+
+class FoodMenu(models.Model):
+    MEAL_TYPE_CHOICES = [
+        ('breakfast', 'Breakfast'),
+        ('lunch', 'Lunch'),
+        ('snacks', 'Snacks'),
+        ('dinner', 'Dinner'),
+    ]
+
+    date = models.DateField(db_index=True)
+    meal_type = models.CharField(max_length=20, choices=MEAL_TYPE_CHOICES)
+    items = models.TextField(help_text='Menu items for this meal, e.g. "Idli, Sambar, Chutney"')
+    notes = models.TextField(blank=True, help_text='Optional notes (e.g. special occasion, diet info)')
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='food_menus_created'
+    )
+    updated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='food_menus_updated'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.date} {self.get_meal_type_display()}"
+
+    class Meta:
+        unique_together = ['date', 'meal_type']
+        ordering = ['date', 'meal_type']

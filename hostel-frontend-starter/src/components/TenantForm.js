@@ -54,6 +54,7 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
   const [branches, setBranches] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [availableRooms, setAvailableRooms] = useState([]);
+  const [credentials, setCredentials] = useState(null); // generated login credentials
   
   const { getUserRole } = useUser();
   const userRole = getUserRole();
@@ -329,35 +330,39 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
       setLoading(true);
       setError('');
 
-      // Map frontend form data to backend field names
       const submitData = {
         name: formData.name,
         email: formData.email,
-        phone_number: formData.phone, // Map frontend phone to backend phone_number
-        address: formData.current_address || formData.permanent_address, // Use current address or fallback to permanent
+        phone_number: formData.phone,
+        date_of_birth: formData.date_of_birth || null,
+        address: formData.current_address || formData.permanent_address,
         emergency_contact_name: formData.emergency_contact_name,
         emergency_contact_phone: formData.emergency_contact_phone,
-        stay_type: 'monthly', // Default to monthly for now
-        joining_date: formData.join_date, // Map frontend join_date to backend joining_date
-        vacating_date: formData.leave_date || null, // Map frontend leave_date to backend vacating_date
-        room: formData.room, // Room ID
+        stay_type: 'monthly',
+        joining_date: formData.join_date,
+        vacating_date: formData.leave_date || null,
+        room: formData.room,
         id_proof_type: formData.id_proof_type,
-        id_proof_number: formData.id_proof_number
+        id_proof_number: formData.id_proof_number,
       };
-
-      console.log('Submitting tenant data:', submitData);
 
       if (isEdit) {
         await enhancedAPI.tenants.update(tenant.id, submitData);
+        onSave();
+        handleClose();
       } else {
-        await enhancedAPI.tenants.create(submitData);
+        const response = await enhancedAPI.tenants.create(submitData);
+        const creds = response.data?.generated_credentials;
+        if (creds) {
+          setCredentials(creds);   // show credentials dialog; onSave called after dismissal
+        } else {
+          onSave();
+          handleClose();
+        }
       }
-
-      onSave();
-      handleClose();
     } catch (error) {
       console.error('Error saving tenant:', error);
-      setError(error.response?.data?.message || 'Failed to save tenant information');
+      setError(error.response?.data?.message || error.response?.data?.detail || 'Failed to save tenant information');
     } finally {
       setLoading(false);
     }
@@ -1002,6 +1007,45 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
             Next
           </Button>
         )}
+      </DialogActions>
+    </Dialog>
+
+    {/* Generated credentials dialog — shown once after successful tenant creation */}
+    <Dialog open={!!credentials} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ bgcolor: 'success.main', color: 'white', fontWeight: 700 }}>
+        Tenant Account Created
+      </DialogTitle>
+      <DialogContent sx={{ pt: 3 }}>
+        <Alert severity="success" sx={{ mb: 2 }}>
+          A login account has been automatically created for this tenant. Share these credentials with them.
+        </Alert>
+        <Box sx={{ bgcolor: '#f5f5f5', borderRadius: 2, p: 2, mb: 2 }}>
+          <Typography variant="body2" color="text.secondary" gutterBottom>Username</Typography>
+          <Typography variant="h6" fontWeight={700} sx={{ letterSpacing: 1 }}>
+            {credentials?.username}
+          </Typography>
+        </Box>
+        <Box sx={{ bgcolor: '#f5f5f5', borderRadius: 2, p: 2, mb: 2 }}>
+          <Typography variant="body2" color="text.secondary" gutterBottom>Default Password</Typography>
+          <Typography variant="h6" fontWeight={700} sx={{ letterSpacing: 1 }}>
+            {credentials?.password}
+          </Typography>
+        </Box>
+        <Alert severity="warning">
+          The tenant will be asked to change their password on first login.
+        </Alert>
+      </DialogContent>
+      <DialogActions>
+        <Button
+          variant="contained"
+          onClick={() => {
+            setCredentials(null);
+            onSave();
+            handleClose();
+          }}
+        >
+          Done
+        </Button>
       </DialogActions>
     </Dialog>
   );

@@ -38,7 +38,11 @@ const LoginPage = () => {
       const result = await login(username, password);
 
       if (result.success) {
-        navigate('/dashboard');
+        if (result.must_change_password) {
+          navigate('/change-password');
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         setError(result.error || 'Login failed. Please check your credentials.');
       }

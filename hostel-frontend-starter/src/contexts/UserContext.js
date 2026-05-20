@@ -63,27 +63,27 @@ export const UserProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
-      // Use new enhanced login endpoint
       const response = await authAPI.login({ username, password });
+      const { access, refresh, user: userData, profile: profileData, must_change_password } = response.data;
 
-      const { access, refresh, user: userData, profile: profileData } = response.data;
-      
-      // Store tokens
       localStorage.setItem('access', access);
       localStorage.setItem('refresh', refresh);
 
-      // Set user and profile data from login response
       setUser(userData);
       setProfile(profileData);
-      
-      return { success: true };
+
+      return { success: true, must_change_password: !!must_change_password };
     } catch (err) {
       console.error('Login failed:', err);
-      return { 
-        success: false, 
-        error: err.response?.data?.detail || 'Login failed' 
+      return {
+        success: false,
+        error: err.response?.data?.detail || 'Login failed',
       };
     }
+  };
+
+  const refreshUserData = async () => {
+    await fetchUserProfile();
   };
 
   // Firebase Phone OTP Login
@@ -180,7 +180,9 @@ export const UserProvider = ({ children }) => {
     getUserName,
     updateProfile,
     getBranchInfo,
-    refreshProfile: fetchUserProfile
+    refreshProfile: fetchUserProfile,
+    refreshUserData,
+    token: localStorage.getItem('access'),
   };
 
   return (

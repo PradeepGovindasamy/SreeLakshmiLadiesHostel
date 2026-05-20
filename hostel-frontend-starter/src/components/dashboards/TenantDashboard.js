@@ -1,156 +1,85 @@
 // src/components/dashboards/TenantDashboard.js
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Grid, Card, CardContent, Typography, Box, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Paper, Chip, Avatar, Divider,
-  LinearProgress, Alert, Button, Collapse, IconButton, Tooltip,
+  Grid, Card, CardContent, Typography, Box, Paper, Chip, Divider,
+  LinearProgress, Alert, Button, Collapse, IconButton, Avatar, Stack,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
 } from '@mui/material';
 import {
-  Person, Home, Payment, ExpandMore, ExpandLess,
-  Phone, Email, CalendarToday, LocationOn, CheckCircle,
-  Warning, Error as ErrorIcon, HourglassEmpty, Refresh,
+  Home, Payment, ExpandMore, ExpandLess,
+  CheckCircle, Warning, Error as ErrorIcon, HourglassEmpty, Refresh,
+  WbSunny, LunchDining, LocalCafe, DinnerDining, Restaurant,
+  AcUnit, Bathtub, Stairs, SquareFoot, KingBed,
 } from '@mui/icons-material';
-import { myAPI } from '../../api';
+import { myAPI, enhancedAPI } from '../../api';
 import { useUser } from '../../contexts/UserContext';
 
-// ── Rent status chip ──────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+const MEAL_TYPES = [
+  { value: 'breakfast', label: 'Breakfast', icon: <WbSunny />,       color: '#f59e0b' },
+  { value: 'lunch',     label: 'Lunch',     icon: <LunchDining />,    color: '#10b981' },
+  { value: 'snacks',    label: 'Snacks',    icon: <LocalCafe />,      color: '#8b5cf6' },
+  { value: 'dinner',    label: 'Dinner',    icon: <DinnerDining />,   color: '#3b82f6' },
+];
 
 function RentStatusChip({ status, due }) {
   const cfg = {
-    PAID:    { label: '✓ Paid',                                 color: 'success', icon: <CheckCircle fontSize="small" /> },
-    PARTIAL: { label: `₹${Number(due || 0).toLocaleString('en-IN')} Due`, color: 'warning', icon: <Warning fontSize="small" /> },
-    PENDING: { label: 'Pending',                                color: 'default', icon: <HourglassEmpty fontSize="small" /> },
-    OVERDUE: { label: `₹${Number(due || 0).toLocaleString('en-IN')} Overdue`, color: 'error', icon: <ErrorIcon fontSize="small" /> },
-    UNKNOWN: { label: 'Rent not configured',                    color: 'default', icon: null },
-  }[status] || { label: status || '—', color: 'default', icon: null };
-
-  return (
-    <Chip
-      icon={cfg.icon}
-      label={cfg.label}
-      color={cfg.color}
-      variant={status === 'PAID' ? 'filled' : 'outlined'}
-      sx={{ fontWeight: 600 }}
-    />
-  );
+    PAID:    { label: '✓ Paid',                                         color: 'success' },
+    PARTIAL: { label: `₹${Number(due || 0).toLocaleString('en-IN')} Due`, color: 'warning' },
+    PENDING: { label: 'Pending',                                          color: 'default' },
+    OVERDUE: { label: `₹${Number(due || 0).toLocaleString('en-IN')} Overdue`, color: 'error' },
+    UNKNOWN: { label: 'Rent not configured',                              color: 'default' },
+  }[status] || { label: status || '—', color: 'default' };
+  return <Chip label={cfg.label} color={cfg.color} size="small" />;
 }
 
-// ── Ledger row ────────────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────
 
-function LedgerRow({ entry }) {
-  const statusColor = {
-    PAID:    'success.main',
-    PARTIAL: 'warning.main',
-    PENDING: 'text.secondary',
-    OVERDUE: 'error.main',
-    UNKNOWN: 'text.disabled',
-  }[entry.rent_status] || 'text.secondary';
+export default function TenantDashboard() {
+  const { getUserName } = useUser();
 
-  return (
-    <TableRow hover>
-      <TableCell>
-        <Typography variant="body2" fontWeight={600}>{entry.for_month_display}</Typography>
-      </TableCell>
-      <TableCell align="right">
-        {entry.agreed_rent != null
-          ? `₹${Number(entry.agreed_rent).toLocaleString('en-IN')}`
-          : '—'}
-      </TableCell>
-      <TableCell align="right">
-        {entry.total_paid > 0
-          ? `₹${Number(entry.total_paid).toLocaleString('en-IN')}`
-          : '—'}
-      </TableCell>
-      <TableCell align="right">
-        {entry.due > 0
-          ? <Typography variant="body2" color="error.main" fontWeight={600}>
-              ₹{Number(entry.due).toLocaleString('en-IN')}
-            </Typography>
-          : <Typography variant="body2" color="success.main">—</Typography>}
-      </TableCell>
-      <TableCell>
-        <Chip
-          label={entry.rent_status}
-          size="small"
-          sx={{ color: statusColor, borderColor: statusColor, fontWeight: 600 }}
-          variant="outlined"
-        />
-      </TableCell>
-    </TableRow>
-  );
-}
-
-// ── Main Dashboard ────────────────────────────────────────────────────────────
-
-const TenantDashboard = () => {
-  const { user, profile, getUserName } = useUser();
-
-  const [loadingProfile, setLoadingProfile] = useState(true);
-  const [loadingLedger, setLoadingLedger] = useState(false);
-  const [error, setError] = useState(null);
-  const [ledgerError, setLedgerError] = useState(null);
-
-  const [tenantProfile, setTenantProfile] = useState(null);
+  const [profile,    setProfile]    = useState(null);
   const [rentStatus, setRentStatus] = useState(null);
-  const [ledger, setLedger] = useState([]);
-  const [ledgerSummary, setLedgerSummary] = useState(null);
+  const [ledger,     setLedger]     = useState([]);
+  const [todayMenu,  setTodayMenu]  = useState([]);
+  const [weekMenu,   setWeekMenu]   = useState([]);
+
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState('');
   const [ledgerOpen, setLedgerOpen] = useState(false);
+  const [weekOpen,   setWeekOpen]   = useState(false);
 
-  // Load profile + current rent status
-  const fetchProfile = useCallback(async () => {
-    setLoadingProfile(true);
-    setError(null);
+  const fetchAll = useCallback(async () => {
     try {
-      const [profileRes, rentRes] = await Promise.all([
-        myAPI.profile(),
-        myAPI.rentStatus(),
+      setLoading(true);
+      setError('');
+      const [profileRes, rentRes, ledgerRes, todayRes, weekRes] = await Promise.all([
+        myAPI.getProfile(),
+        myAPI.getRentStatus(),
+        myAPI.getRentLedger(),
+        enhancedAPI.foodMenu.today(),
+        enhancedAPI.foodMenu.week(),
       ]);
-      setTenantProfile(profileRes.data);
+      setProfile(profileRes.data);
       setRentStatus(rentRes.data);
-    } catch (err) {
-      console.error('TenantDashboard fetch error:', {
-        status: err?.response?.status,
-        data: err?.response?.data,
-      });
-      const msg = err?.response?.data?.error
-        || err?.response?.data?.detail
-        || 'Failed to load your profile. Please try again.';
-      setError(msg);
+      setLedger(ledgerRes.data?.ledger ?? ledgerRes.data ?? []);
+      setTodayMenu(todayRes.data?.results ?? todayRes.data ?? []);
+      setWeekMenu(weekRes.data?.results  ?? weekRes.data  ?? []);
+    } catch (e) {
+      setError('Failed to load dashboard data. Please try refreshing.');
     } finally {
-      setLoadingProfile(false);
+      setLoading(false);
     }
   }, []);
 
-  // Load full rent ledger (lazy — only when section is expanded)
-  const fetchLedger = useCallback(async () => {
-    if (loadingLedger) return;
-    setLoadingLedger(true);
-    setLedgerError(null);
-    try {
-      const res = await myAPI.rentLedger();
-      setLedger(res.data.ledger || []);
-      setLedgerSummary(res.data.summary || null);
-    } catch (err) {
-      console.error('Ledger fetch error:', err?.response?.data);
-      setLedgerError('Failed to load payment history.');
-    } finally {
-      setLoadingLedger(false);
-    }
-  }, [loadingLedger]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  const handleToggleLedger = () => {
-    if (!ledgerOpen && ledger.length === 0) {
-      fetchLedger();
-    }
-    setLedgerOpen(o => !o);
-  };
-
-  // ── Render: loading ──────────────────────────────────────────────────────
-  if (loadingProfile) {
+  if (loading) {
     return (
       <Box sx={{ p: 4 }}>
         <LinearProgress sx={{ borderRadius: 2, mb: 2 }} />
@@ -159,305 +88,267 @@ const TenantDashboard = () => {
     );
   }
 
-  // ── Render: error ────────────────────────────────────────────────────────
-  if (error) {
-    return (
-      <Box sx={{ p: 4 }}>
-        <Alert
-          severity="error"
-          sx={{ borderRadius: 2 }}
-          action={<Button size="small" onClick={fetchProfile}>Retry</Button>}
-        >
-          {error}
-        </Alert>
-      </Box>
-    );
-  }
+  const room   = profile?.room_detail  ?? profile?.room  ?? null;
+  const branch = profile?.branch_detail ?? null;
 
-  const rs = rentStatus;  // shorthand
+  const todayMenuByType = Object.fromEntries(todayMenu.map(m => [m.meal_type, m]));
+  const weekByDate = weekMenu.reduce((acc, m) => {
+    (acc[m.date] = acc[m.date] || []).push(m);
+    return acc;
+  }, {});
+  const weekDates = Object.keys(weekByDate).sort();
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 } }}>
+    <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1100, mx: 'auto' }}>
 
-      {/* ── Header ───────────────────────────────────────────────────────── */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700}>
-            Welcome back, {tenantProfile?.name || getUserName()}!
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Tenant Dashboard — your hostel information
-          </Typography>
-        </Box>
-        <Tooltip title="Refresh">
-          <IconButton onClick={fetchProfile} size="small">
-            <Refresh />
-          </IconButton>
-        </Tooltip>
+      {/* Welcome */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" fontWeight={800} color="grey.900">
+          Welcome, {getUserName()} 👋
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          Here's your room and meal information.
+        </Typography>
       </Box>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}
+          action={<Button size="small" startIcon={<Refresh />} onClick={fetchAll}>Retry</Button>}>
+          {error}
+        </Alert>
+      )}
 
       <Grid container spacing={3}>
 
-        {/* ── Profile card ─────────────────────────────────────────────── */}
-        <Grid item xs={12} md={4}>
-          <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3 }}>
+        {/* ── Room Details ─────────────────────────────────────────────────── */}
+        <Grid item xs={12} md={6}>
+          <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, height: '100%' }}>
+            <Box sx={{ height: 4, background: 'linear-gradient(135deg,#0ea5e9,#06b6d4)', borderRadius: '12px 12px 0 0' }} />
             <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                <Avatar sx={{ width: 56, height: 56, bgcolor: 'primary.main', borderRadius: 2 }}>
-                  <Person fontSize="large" />
-                </Avatar>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <Home sx={{ color: '#0ea5e9' }} />
+                <Typography variant="h6" fontWeight={700}>My Room</Typography>
+              </Box>
+
+              {room ? (
                 <Box>
-                  <Typography variant="h6" fontWeight={700}>
-                    {tenantProfile?.name || getUserName()}
+                  <Typography variant="h5" fontWeight={800} color="primary.main" sx={{ mb: 0.5 }}>
+                    {room.room_name}
                   </Typography>
-                  <Chip label="Tenant" size="small" color="primary" variant="outlined" />
+                  {branch && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      {branch.name}{branch.address ? ` · ${branch.address}` : ''}
+                    </Typography>
+                  )}
+                  <Divider sx={{ my: 1.5 }} />
+                  <Grid container spacing={1.5}>
+                    {[
+                      { icon: <KingBed fontSize="small" />,     label: 'Type',    value: room.sharing_type_display ?? `${room.sharing_type}-Sharing` },
+                      { icon: <Stairs fontSize="small" />,      label: 'Floor',   value: room.floor_number != null ? `Floor ${room.floor_number}` : '—' },
+                      { icon: <SquareFoot fontSize="small" />,  label: 'Size',    value: room.room_size_sqft ? `${room.room_size_sqft} sq.ft` : '—' },
+                      { icon: <AcUnit fontSize="small" />,      label: 'AC',      value: room.ac_room ? 'Yes' : 'No' },
+                      { icon: <Bathtub fontSize="small" />,     label: 'Bathroom',value: room.attached_bath ? 'Attached' : 'Common' },
+                      { icon: <Payment fontSize="small" />,     label: 'Rent',    value: room.rent ? `₹${Number(room.rent).toLocaleString('en-IN')}/mo` : '—' },
+                    ].map(({ icon, label, value }) => (
+                      <Grid item xs={6} key={label}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                          {icon}
+                          <Typography variant="caption">{label}</Typography>
+                        </Box>
+                        <Typography variant="body2" fontWeight={600}>{value}</Typography>
+                      </Grid>
+                    ))}
+                  </Grid>
                 </Box>
-              </Box>
-              <Divider sx={{ my: 1.5 }} />
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Phone sx={{ fontSize: 16, color: 'text.secondary' }} />
-                  <Typography variant="body2">
-                    {tenantProfile?.phone_number || 'Not provided'}
-                  </Typography>
+              ) : (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <Home sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+                  <Typography color="text.secondary">No room assigned yet.</Typography>
                 </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Email sx={{ fontSize: 16, color: 'text.secondary' }} />
-                  <Typography variant="body2">
-                    {tenantProfile?.email || user?.email || 'Not provided'}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CalendarToday sx={{ fontSize: 16, color: 'text.secondary' }} />
-                  <Typography variant="body2">
-                    Joined: {tenantProfile?.joining_date
-                      ? new Date(tenantProfile.joining_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
-                      : 'N/A'}
-                  </Typography>
-                </Box>
-              </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
 
-        {/* ── Room card ────────────────────────────────────────────────── */}
-        <Grid item xs={12} md={4}>
-          <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3 }}>
+        {/* ── Rent Status ──────────────────────────────────────────────────── */}
+        <Grid item xs={12} md={6}>
+          <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, height: '100%' }}>
+            <Box sx={{ height: 4, background: 'linear-gradient(135deg,#f59e0b,#ef4444)', borderRadius: '12px 12px 0 0' }} />
             <CardContent>
-              <Typography variant="subtitle1" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <Home color="primary" /> Room Information
-              </Typography>
-              <Divider sx={{ mb: 1.5 }} />
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2" color="text.secondary">Room</Typography>
-                  <Typography variant="body2" fontWeight={600}>
-                    {tenantProfile?.room_display || 'Not assigned'}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2" color="text.secondary">Branch</Typography>
-                  <Typography variant="body2" fontWeight={600}>
-                    {tenantProfile?.branch_name || '—'}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2" color="text.secondary">Stay Type</Typography>
-                  <Typography variant="body2" fontWeight={600} sx={{ textTransform: 'capitalize' }}>
-                    {tenantProfile?.stay_type || '—'}
-                  </Typography>
-                </Box>
-                {rs?.agreed_rent && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography variant="body2" color="text.secondary">Monthly Rent</Typography>
-                    <Typography variant="body2" fontWeight={600}>
-                      ₹{Number(rs.agreed_rent).toLocaleString('en-IN')}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <Payment sx={{ color: '#f59e0b' }} />
+                <Typography variant="h6" fontWeight={700}>Rent Status</Typography>
+              </Box>
+
+              {rentStatus ? (
+                <Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                    <RentStatusChip status={rentStatus.status} due={rentStatus.balance_due} />
+                    <Typography variant="caption" color="text.secondary">
+                      {new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}
                     </Typography>
                   </Box>
-                )}
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+                  <Divider sx={{ my: 1.5 }} />
+                  <Grid container spacing={1.5}>
+                    {[
+                      { label: 'Monthly Rent',   value: `₹${Number(rentStatus.agreed_rent   || 0).toLocaleString('en-IN')}` },
+                      { label: 'Amount Paid',    value: `₹${Number(rentStatus.amount_paid   || 0).toLocaleString('en-IN')}` },
+                      { label: 'Balance Due',    value: `₹${Number(rentStatus.balance_due   || 0).toLocaleString('en-IN')}` },
+                      { label: 'Joining Date',   value: profile?.joining_date
+                          ? new Date(profile.joining_date).toLocaleDateString('en-IN') : '—' },
+                    ].map(({ label, value }) => (
+                      <Grid item xs={6} key={label}>
+                        <Typography variant="caption" color="text.secondary">{label}</Typography>
+                        <Typography variant="body2" fontWeight={600}>{value}</Typography>
+                      </Grid>
+                    ))}
+                  </Grid>
 
-        {/* ── Current month rent status card ───────────────────────────── */}
-        <Grid item xs={12} md={4}>
-          <Card
-            elevation={0}
-            sx={{
-              border: '1px solid',
-              borderColor: {
-                PAID: 'success.light', OVERDUE: 'error.light',
-                PARTIAL: 'warning.light', PENDING: '#e2e8f0',
-              }[rs?.rent_status] || '#e2e8f0',
-              borderRadius: 3,
-              height: '100%',
-            }}
-          >
-            <CardContent>
-              <Typography variant="subtitle1" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <Payment color="primary" /> Rent — {rs?.for_month_display || 'This Month'}
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-
-              {rs ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                    <RentStatusChip status={rs.rent_status} due={rs.due} />
-                  </Box>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                    {rs.agreed_rent != null && (
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography variant="body2" color="text.secondary">Rent due</Typography>
-                        <Typography variant="body2">₹{Number(rs.agreed_rent).toLocaleString('en-IN')}</Typography>
-                      </Box>
-                    )}
-                    {rs.total_paid > 0 && (
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography variant="body2" color="text.secondary">Paid</Typography>
-                        <Typography variant="body2" color="success.main" fontWeight={600}>
-                          ₹{Number(rs.total_paid).toLocaleString('en-IN')}
-                        </Typography>
-                      </Box>
-                    )}
-                    {rs.due > 0 && (
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography variant="body2" color="text.secondary">Outstanding</Typography>
-                        <Typography variant="body2" color="error.main" fontWeight={700}>
-                          ₹{Number(rs.due).toLocaleString('en-IN')}
-                        </Typography>
-                      </Box>
-                    )}
+                  {/* Rent ledger toggle */}
+                  <Box sx={{ mt: 2 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      endIcon={ledgerOpen ? <ExpandLess /> : <ExpandMore />}
+                      onClick={() => setLedgerOpen(o => !o)}
+                    >
+                      {ledgerOpen ? 'Hide' : 'View'} Rent History
+                    </Button>
+                    <Collapse in={ledgerOpen}>
+                      <TableContainer component={Paper} elevation={0} sx={{ mt: 1, border: '1px solid #e2e8f0', borderRadius: 2 }}>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow sx={{ '& th': { fontWeight: 700, fontSize: 11, textTransform: 'uppercase', color: 'text.secondary' } }}>
+                              <TableCell>Month</TableCell>
+                              <TableCell align="right">Rent</TableCell>
+                              <TableCell align="right">Paid</TableCell>
+                              <TableCell>Status</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {ledger.length === 0 ? (
+                              <TableRow><TableCell colSpan={4} align="center" sx={{ color: 'text.secondary' }}>No history yet</TableCell></TableRow>
+                            ) : ledger.map((row, i) => (
+                              <TableRow key={i}>
+                                <TableCell>{row.month_label ?? row.month}</TableCell>
+                                <TableCell align="right">₹{Number(row.agreed_rent || 0).toLocaleString('en-IN')}</TableCell>
+                                <TableCell align="right">₹{Number(row.amount_paid || 0).toLocaleString('en-IN')}</TableCell>
+                                <TableCell><RentStatusChip status={row.status} due={row.balance_due} /></TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Collapse>
                   </Box>
                 </Box>
               ) : (
-                <Typography variant="body2" color="text.secondary" textAlign="center">
-                  Rent information not available
-                </Typography>
+                <Typography color="text.secondary">Rent information not available.</Typography>
               )}
             </CardContent>
           </Card>
         </Grid>
 
-        {/* ── Rent Ledger (collapsible) ─────────────────────────────────── */}
+        {/* ── Today's Food Menu ─────────────────────────────────────────────── */}
         <Grid item xs={12}>
           <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3 }}>
-            <CardContent
-              sx={{ cursor: 'pointer', userSelect: 'none' }}
-              onClick={handleToggleLedger}
-            >
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="subtitle1" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Payment color="primary" /> Payment History
-                  {ledgerSummary && (
-                    <Chip
-                      label={`${ledgerSummary.overdue_months_count} overdue`}
-                      color={ledgerSummary.overdue_months_count > 0 ? 'error' : 'success'}
-                      size="small"
-                      sx={{ ml: 1 }}
-                    />
-                  )}
-                </Typography>
-                <IconButton size="small" onClick={handleToggleLedger}>
-                  {ledgerOpen ? <ExpandLess /> : <ExpandMore />}
-                </IconButton>
+            <Box sx={{ height: 4, background: 'linear-gradient(135deg,#10b981,#059669)', borderRadius: '12px 12px 0 0' }} />
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Restaurant sx={{ color: '#10b981' }} />
+                  <Typography variant="h6" fontWeight={700}>
+                    Today's Menu — {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  </Typography>
+                </Box>
+                <Button size="small" variant="outlined"
+                  endIcon={weekOpen ? <ExpandLess /> : <ExpandMore />}
+                  onClick={() => setWeekOpen(o => !o)}>
+                  {weekOpen ? 'Hide' : 'View'} Week
+                </Button>
               </Box>
 
-              {ledgerSummary && !ledgerOpen && (
-                <Box sx={{ display: 'flex', gap: 3, mt: 1, flexWrap: 'wrap' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Total paid: <strong>₹{Number(ledgerSummary.total_paid).toLocaleString('en-IN')}</strong>
-                  </Typography>
-                  {ledgerSummary.total_due > 0 && (
-                    <Typography variant="body2" color="error.main">
-                      Outstanding: <strong>₹{Number(ledgerSummary.total_due).toLocaleString('en-IN')}</strong>
-                    </Typography>
-                  )}
-                </Box>
+              {todayMenu.length === 0 ? (
+                <Alert severity="info" sx={{ borderRadius: 2 }}>
+                  Today's menu has not been updated yet. Please check back later.
+                </Alert>
+              ) : (
+                <Grid container spacing={2}>
+                  {MEAL_TYPES.map(({ value, label, icon, color }) => {
+                    const entry = todayMenuByType[value];
+                    return (
+                      <Grid item xs={12} sm={6} md={3} key={value}>
+                        <Paper elevation={0} sx={{ p: 2, border: `1px solid ${entry ? color + '40' : '#e2e8f0'}`, borderRadius: 2, height: '100%' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color, mb: 1 }}>
+                            {icon}
+                            <Typography variant="subtitle2" fontWeight={700}>{label}</Typography>
+                          </Box>
+                          {entry
+                            ? <Typography variant="body2">{entry.items}</Typography>
+                            : <Typography variant="body2" color="text.disabled" fontStyle="italic">Not set</Typography>
+                          }
+                          {entry?.notes && (
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                              {entry.notes}
+                            </Typography>
+                          )}
+                        </Paper>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
               )}
+
+              {/* Weekly menu */}
+              <Collapse in={weekOpen}>
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>This Week's Menu</Typography>
+                {weekDates.length === 0 ? (
+                  <Typography color="text.secondary">No menu set for this week.</Typography>
+                ) : (
+                  <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ '& th': { fontWeight: 700, fontSize: 11, textTransform: 'uppercase', color: 'text.secondary' } }}>
+                          <TableCell>Date</TableCell>
+                          {MEAL_TYPES.map(m => <TableCell key={m.value}>{m.label}</TableCell>)}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {weekDates.map(date => {
+                          const byType = Object.fromEntries((weekByDate[date] || []).map(m => [m.meal_type, m]));
+                          const isToday = date === todayStr();
+                          return (
+                            <TableRow key={date} sx={{ bgcolor: isToday ? '#eff6ff' : 'inherit' }}>
+                              <TableCell>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <Typography variant="body2" fontWeight={isToday ? 700 : 400}>
+                                    {new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                                  </Typography>
+                                  {isToday && <Chip label="Today" size="small" color="primary" sx={{ height: 16, fontSize: 10 }} />}
+                                </Box>
+                              </TableCell>
+                              {MEAL_TYPES.map(({ value }) => (
+                                <TableCell key={value}>
+                                  {byType[value]
+                                    ? <Typography variant="body2">{byType[value].items}</Typography>
+                                    : <Typography variant="caption" color="text.disabled">—</Typography>
+                                  }
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </Collapse>
             </CardContent>
-
-            <Collapse in={ledgerOpen} timeout="auto" unmountOnExit>
-              <Divider />
-              <CardContent sx={{ pt: 0, pb: 1 }}>
-
-                {loadingLedger && (
-                  <Box sx={{ py: 3 }}>
-                    <LinearProgress sx={{ borderRadius: 2 }} />
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                      Loading payment history…
-                    </Typography>
-                  </Box>
-                )}
-
-                {ledgerError && (
-                  <Alert
-                    severity="error"
-                    action={<Button size="small" onClick={fetchLedger}>Retry</Button>}
-                    sx={{ my: 2, borderRadius: 2 }}
-                  >
-                    {ledgerError}
-                  </Alert>
-                )}
-
-                {!loadingLedger && !ledgerError && ledger.length > 0 && (
-                  <>
-                    {/* Summary banner */}
-                    {ledgerSummary && (
-                      <Box sx={{ display: 'flex', gap: 3, py: 2, flexWrap: 'wrap' }}>
-                        <Typography variant="body2">
-                          Months tracked: <strong>{ledgerSummary.total_months}</strong>
-                        </Typography>
-                        <Typography variant="body2" color="success.main">
-                          Total paid: <strong>₹{Number(ledgerSummary.total_paid).toLocaleString('en-IN')}</strong>
-                        </Typography>
-                        {ledgerSummary.total_due > 0 && (
-                          <Typography variant="body2" color="error.main">
-                            Outstanding: <strong>₹{Number(ledgerSummary.total_due).toLocaleString('en-IN')}</strong>
-                          </Typography>
-                        )}
-                        {ledgerSummary.overdue_months_count > 0 && (
-                          <Typography variant="body2" color="error.main">
-                            Overdue months: <strong>{ledgerSummary.overdue_months_count}</strong>
-                          </Typography>
-                        )}
-                      </Box>
-                    )}
-
-                    <TableContainer>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow sx={{ backgroundColor: '#f8fafc' }}>
-                            <TableCell><strong>Month</strong></TableCell>
-                            <TableCell align="right"><strong>Rent</strong></TableCell>
-                            <TableCell align="right"><strong>Paid</strong></TableCell>
-                            <TableCell align="right"><strong>Due</strong></TableCell>
-                            <TableCell><strong>Status</strong></TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {ledger.map((entry) => (
-                            <LedgerRow key={entry.for_month} entry={entry} />
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </>
-                )}
-
-                {!loadingLedger && !ledgerError && ledger.length === 0 && (
-                  <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
-                    No payment history found.
-                  </Typography>
-                )}
-              </CardContent>
-            </Collapse>
           </Card>
         </Grid>
 
       </Grid>
     </Box>
   );
-};
-
-export default TenantDashboard;
+}

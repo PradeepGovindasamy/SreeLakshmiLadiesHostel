@@ -5,7 +5,7 @@ from django.db import models
 from django.db.models import Count, Q
 from .models import (
     Branch, Room, Tenant, RoomOccupancy, RentPayment,
-    UserProfile, WardenAssignment, TenantRequest, BranchPermission
+    UserProfile, WardenAssignment, TenantRequest, BranchPermission, FoodMenu
 )
 
 
@@ -214,7 +214,7 @@ class TenantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tenant
         fields = [
-            'id', 'user', 'name', 'address', 'phone_number', 'email',
+            'id', 'user', 'name', 'date_of_birth', 'address', 'phone_number', 'email',
             'emergency_contact_name', 'emergency_contact_phone',
             'stay_type', 'stay_type_display', 'joining_date', 'vacating_date',
             'room', 'room_detail', 'room_display', 'branch_name',
@@ -574,3 +574,33 @@ class BranchPermissionSerializer(serializers.ModelSerializer):
             'branch': {'write_only': True},
             'granted_by': {'write_only': True}
         }
+
+
+class FoodMenuSerializer(serializers.ModelSerializer):
+    meal_type_display = serializers.CharField(source='get_meal_type_display', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    updated_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FoodMenu
+        fields = [
+            'id', 'date', 'meal_type', 'meal_type_display',
+            'items', 'notes',
+            'created_by', 'created_by_name',
+            'updated_by', 'updated_by_name',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'meal_type_display', 'created_by_name', 'updated_by_name',
+            'created_by', 'updated_by', 'created_at', 'updated_at',
+        ]
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return obj.created_by.get_full_name() or obj.created_by.username
+        return None
+
+    def get_updated_by_name(self, obj):
+        if obj.updated_by:
+            return obj.updated_by.get_full_name() or obj.updated_by.username
+        return None

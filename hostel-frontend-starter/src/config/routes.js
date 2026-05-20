@@ -3,6 +3,7 @@ import LoginForm from '../components/LoginForm';
 import LoginPage from '../pages/LoginPage';
 import ForgotPasswordPage from '../pages/ForgotPasswordPage';
 import PasswordResetConfirmPage from '../pages/PasswordResetConfirmPage';
+import ChangePasswordPage from '../pages/ChangePasswordPage';
 import ConditionalDashboard from '../components/ConditionalDashboard';
 import Branches from '../components/Branches';
 import Rooms from '../components/Rooms';
@@ -16,6 +17,7 @@ import HomePage from '../components/public/HomePage';
 import Groceries from '../components/Groceries';
 import Machines from '../components/Machines';
 import Workers from '../components/Workers';
+import FoodMenuPage from '../components/FoodMenuPage';
 
 // Define all routes with their access controls
 export const routeConfig = [
@@ -49,6 +51,13 @@ export const routeConfig = [
     component: PasswordResetConfirmPage,
     isPublic: true,
     title: 'Reset Password'
+  },
+  {
+    path: '/change-password',
+    component: ChangePasswordPage,
+    requiredRoles: ['owner', 'warden', 'tenant', 'admin'],
+    title: 'Change Password',
+    showInNav: false
   },
 
   // Dashboard routes (role-based)
@@ -146,6 +155,16 @@ export const routeConfig = [
     title: 'Service Requests',
     showInNav: true,
     navLabel: 'Service Requests'
+  },
+
+  // Food Menu — visible to all authenticated roles
+  {
+    path: '/food-menu',
+    component: FoodMenuPage,
+    requiredRoles: ['owner', 'admin', 'warden', 'tenant'],
+    title: 'Food Menu',
+    showInNav: true,
+    navLabel: 'Food Menu'
   },
 
   // Tenant routes
