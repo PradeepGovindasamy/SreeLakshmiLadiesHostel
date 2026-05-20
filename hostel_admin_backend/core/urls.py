@@ -14,6 +14,10 @@ from .views_enhanced import (
     EnhancedRoomOccupancyViewSet, EnhancedRentPaymentViewSet, FoodMenuViewSet
 )
 from .views_my import my_profile, my_rent_status, my_rent_ledger, my_payments
+from .views_kitchen import (
+    FoodMenuItemViewSet, MenuIngredientViewSet,
+    ResidentAvailabilityViewSet, MealCountViewSet,
+)
 
 # Create routers for different API versions
 router = DefaultRouter()
@@ -34,6 +38,10 @@ enhanced_router.register(r'tenants', EnhancedTenantViewSet, basename='enhanced-t
 enhanced_router.register(r'occupancy', EnhancedRoomOccupancyViewSet, basename='enhanced-occupancy')
 enhanced_router.register(r'payments', EnhancedRentPaymentViewSet, basename='enhanced-payments')
 enhanced_router.register(r'food-menu', FoodMenuViewSet, basename='food-menu')
+enhanced_router.register(r'food-menu-items', FoodMenuItemViewSet, basename='food-menu-items')
+enhanced_router.register(r'menu-ingredients', MenuIngredientViewSet, basename='menu-ingredients')
+enhanced_router.register(r'meal-availability', ResidentAvailabilityViewSet, basename='meal-availability')
+enhanced_router.register(r'meal-counts', MealCountViewSet, basename='meal-counts')
 
 # User management
 user_router = DefaultRouter()

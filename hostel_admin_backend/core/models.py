@@ -497,18 +497,20 @@ class BranchPermission(models.Model):
         ordering = ['-granted_at']
 
 
-class FoodMenu(models.Model):
-    MEAL_TYPE_CHOICES = [
-        ('breakfast', 'Breakfast'),
-        ('lunch', 'Lunch'),
-        ('snacks', 'Snacks'),
-        ('dinner', 'Dinner'),
-    ]
+MEAL_TYPE_CHOICES = [
+    ('breakfast', 'Breakfast'),
+    ('lunch', 'Lunch'),
+    ('snacks', 'Snacks'),
+    ('dinner', 'Dinner'),
+]
 
+
+class FoodMenu(models.Model):
     date = models.DateField(db_index=True)
     meal_type = models.CharField(max_length=20, choices=MEAL_TYPE_CHOICES)
-    items = models.TextField(help_text='Menu items for this meal, e.g. "Idli, Sambar, Chutney"')
-    notes = models.TextField(blank=True, help_text='Optional notes (e.g. special occasion, diet info)')
+    # Human-readable summary of what's being served (e.g. "Idli, Sambar, Chutney")
+    items = models.TextField(blank=True, help_text='Brief summary of menu items')
+    notes = models.TextField(blank=True, help_text='Optional notes (special occasion, diet info)')
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='food_menus_created'
@@ -526,3 +528,106 @@ class FoodMenu(models.Model):
     class Meta:
         unique_together = ['date', 'meal_type']
         ordering = ['date', 'meal_type']
+
+
+class FoodMenuItem(models.Model):
+    """Individual dish within a meal (e.g. Idli, Sambar, Chutney under Breakfast)."""
+    food_menu = models.ForeignKey(FoodMenu, on_delete=models.CASCADE, related_name='menu_items')
+    name = models.CharField(max_length=200, help_text='Dish name, e.g. Idli')
+    description = models.TextField(blank=True)
+    display_order = models.PositiveSmallIntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.food_menu} → {self.name}"
+
+    class Meta:
+        ordering = ['food_menu', 'display_order', 'name']
+
+
+class MenuIngredient(models.Model):
+    """Recipe mapping: how much of each grocery ingredient is needed per person per dish."""
+
+    UNIT_CHOICES = [
+        ('kg', 'Kilogram'), ('g', 'Gram'),
+        ('l', 'Liter'), ('ml', 'Milliliter'),
+        ('piece', 'Piece'), ('packet', 'Packet'),
+    ]
+
+    menu_item = models.ForeignKey(FoodMenuItem, on_delete=models.CASCADE, related_name='ingredients')
+    grocery_item = models.ForeignKey(
+        'groceries.GroceryItem', on_delete=models.PROTECT, related_name='menu_usages'
+    )
+    quantity_per_person = models.DecimalField(
+        max_digits=8, decimal_places=3,
+        help_text='Quantity consumed per person (in the unit specified below)'
+    )
+    unit = models.CharField(max_length=20, choices=UNIT_CHOICES, default='g')
+
+    def __str__(self):
+        return f"{self.menu_item.name}: {self.grocery_item.name} {self.quantity_per_person}{self.unit}/person"
+
+    class Meta:
+        unique_together = ['menu_item', 'grocery_item']
+        ordering = ['menu_item', 'grocery_item__name']
+
+
+class ResidentMealAvailability(models.Model):
+    """
+    Residents mark themselves UNAVAILABLE for a specific meal.
+    If no record exists → resident is AVAILABLE (default).
+    """
+    resident = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='meal_availability'
+    )
+    date = models.DateField(db_index=True)
+    meal_type = models.CharField(max_length=20, choices=MEAL_TYPE_CHOICES)
+    is_available = models.BooleanField(
+        default=True,
+        help_text='False = resident opted out of this meal'
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='availability_updates'
+    )
+
+    def __str__(self):
+        status = 'available' if self.is_available else 'unavailable'
+        return f"{self.resident.name} {self.date} {self.meal_type}: {status}"
+
+    class Meta:
+        unique_together = ['resident', 'date', 'meal_type']
+        ordering = ['date', 'meal_type', 'resident']
+        indexes = [
+            models.Index(fields=['date', 'meal_type']),
+            models.Index(fields=['resident', 'date']),
+        ]
+
+
+class MealCountSnapshot(models.Model):
+    """
+    Persisted snapshot of meal counts taken when consumption is triggered.
+    Preserves historical reproducibility even if resident data changes later.
+    """
+    date = models.DateField(db_index=True)
+    meal_type = models.CharField(max_length=20, choices=MEAL_TYPE_CHOICES)
+    total_residents = models.PositiveIntegerField(help_text='Active tenants at snapshot time')
+    unavailable_count = models.PositiveIntegerField(default=0)
+    meal_count = models.PositiveIntegerField(help_text='Residents actually eating (total - unavailable)')
+    snapshot_taken_at = models.DateTimeField(auto_now_add=True)
+    taken_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='meal_snapshots',
+        help_text='Null = automated scheduler'
+    )
+    consumption_generated = models.BooleanField(
+        default=False,
+        help_text='True when inventory transactions have been created for this snapshot'
+    )
+
+    def __str__(self):
+        return f"Meal count {self.date} {self.meal_type}: {self.meal_count}"
+
+    class Meta:
+        unique_together = ['date', 'meal_type']
+        ordering = ['-date', 'meal_type']

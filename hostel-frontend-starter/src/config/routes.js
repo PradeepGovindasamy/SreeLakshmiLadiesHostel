@@ -18,6 +18,8 @@ import Groceries from '../components/Groceries';
 import Machines from '../components/Machines';
 import Workers from '../components/Workers';
 import FoodMenuPage from '../components/FoodMenuPage';
+import ResidentAvailabilityPage from '../components/ResidentAvailabilityPage';
+import MealCountPage from '../components/MealCountPage';
 
 // Define all routes with their access controls
 export const routeConfig = [
@@ -167,7 +169,25 @@ export const routeConfig = [
     navLabel: 'Food Menu'
   },
 
+  // Meal Count — warden/admin/owner can see counts and trigger consumption
+  {
+    path: '/meal-count',
+    component: MealCountPage,
+    requiredRoles: ['owner', 'admin', 'warden'],
+    title: 'Meal Count',
+    showInNav: true,
+    navLabel: 'Meal Count'
+  },
+
   // Tenant routes
+  {
+    path: '/my-availability',
+    component: ResidentAvailabilityPage,
+    requiredRoles: ['tenant'],
+    title: 'My Meal Availability',
+    showInNav: true,
+    navLabel: 'Meal Availability'
+  },
   {
     path: '/my-profile',
     component: Profile,

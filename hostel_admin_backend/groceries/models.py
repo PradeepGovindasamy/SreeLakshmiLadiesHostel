@@ -193,6 +193,73 @@ class GroceryPurchaseItem(models.Model):
         super().save(*args, **kwargs)
 
 
+class InventoryTransaction(models.Model):
+    """
+    Single source of truth for all inventory movements.
+    GroceryStock.quantity is updated automatically via save() signal.
+    """
+    TRANSACTION_TYPE_CHOICES = [
+        ('purchase', 'Purchase'),
+        ('consumption', 'Consumption'),
+        ('wastage', 'Wastage'),
+        ('adjustment', 'Adjustment'),
+    ]
+
+    REFERENCE_TYPE_CHOICES = [
+        ('meal', 'Meal Consumption'),
+        ('purchase', 'Grocery Purchase'),
+        ('manual', 'Manual Adjustment'),
+    ]
+
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='inventory_transactions')
+    grocery_item = models.ForeignKey(GroceryItem, on_delete=models.PROTECT, related_name='transactions')
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPE_CHOICES)
+    # Positive = incoming (purchase/adjustment+), Negative = outgoing (consumption/wastage)
+    quantity = models.DecimalField(max_digits=10, decimal_places=3)
+    unit = models.CharField(max_length=20, default='g')
+    reference_type = models.CharField(max_length=20, choices=REFERENCE_TYPE_CHOICES, blank=True)
+    reference_id = models.IntegerField(
+        null=True, blank=True,
+        help_text='ID of MealCountSnapshot, GroceryPurchase, etc.'
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='inventory_transactions'
+    )
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            self._update_stock()
+
+    def _update_stock(self):
+        """Adjust GroceryStock.quantity based on transaction type."""
+        stock, _ = GroceryStock.objects.get_or_create(
+            branch=self.branch,
+            item=self.grocery_item,
+            defaults={'quantity': 0}
+        )
+        if self.transaction_type in ('purchase', 'adjustment'):
+            stock.quantity = models.F('quantity') + self.quantity
+        else:
+            stock.quantity = models.F('quantity') - abs(self.quantity)
+        stock.save(update_fields=['quantity'])
+
+    def __str__(self):
+        return f"{self.transaction_type} {abs(self.quantity)}{self.unit} {self.grocery_item.name} [{self.branch.name}]"
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['branch', 'grocery_item', 'transaction_type']),
+            models.Index(fields=['branch', 'created_at']),
+            models.Index(fields=['reference_type', 'reference_id']),
+        ]
+
+
 class GroceryConsumption(models.Model):
     """Track daily/monthly consumption"""
     

@@ -2,12 +2,13 @@ from rest_framework import viewsets, filters
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import (
     GroceryCategory, GroceryItem, Vendor, GroceryStock,
-    GroceryPurchase, GroceryPurchaseItem, GroceryConsumption
+    GroceryPurchase, GroceryPurchaseItem, GroceryConsumption,
+    InventoryTransaction,
 )
 from .serializers import (
     GroceryCategorySerializer, GroceryItemSerializer, VendorSerializer,
     GroceryStockSerializer, GroceryPurchaseSerializer, GroceryPurchaseItemSerializer,
-    GroceryConsumptionSerializer
+    GroceryConsumptionSerializer, InventoryTransactionSerializer,
 )
 
 
@@ -92,3 +93,23 @@ class GroceryConsumptionViewSet(viewsets.ModelViewSet):
     filterset_fields = ['branch', 'item', 'consumption_date']
     ordering_fields = ['consumption_date', 'created_at']
     ordering = ['-consumption_date']
+
+
+class InventoryTransactionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Read-only audit trail of all inventory movements.
+    Transactions are created automatically by the system (meal consumption)
+    or via purchase recording. Manual adjustments go through this endpoint.
+    """
+    serializer_class = InventoryTransactionSerializer
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['branch', 'grocery_item', 'transaction_type', 'reference_type']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        qs = InventoryTransaction.objects.select_related('branch', 'grocery_item', 'created_by')
+        branch_id = self.request.query_params.get('branch')
+        if branch_id:
+            qs = qs.filter(branch_id=branch_id)
+        return qs

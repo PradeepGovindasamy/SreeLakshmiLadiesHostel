@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from .models import (
     GroceryCategory, GroceryItem, Vendor, GroceryStock,
-    GroceryPurchase, GroceryPurchaseItem, GroceryConsumption
+    GroceryPurchase, GroceryPurchaseItem, GroceryConsumption,
+    InventoryTransaction,
 )
 
 
@@ -77,3 +78,28 @@ class GroceryConsumptionSerializer(serializers.ModelSerializer):
         model = GroceryConsumption
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at']
+
+
+class InventoryTransactionSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    item_name = serializers.CharField(source='grocery_item.name', read_only=True)
+    item_unit = serializers.CharField(source='grocery_item.unit', read_only=True)
+    transaction_type_display = serializers.CharField(source='get_transaction_type_display', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InventoryTransaction
+        fields = [
+            'id', 'branch', 'branch_name',
+            'grocery_item', 'item_name', 'item_unit',
+            'transaction_type', 'transaction_type_display',
+            'quantity', 'unit',
+            'reference_type', 'reference_id',
+            'notes', 'created_at', 'created_by', 'created_by_name',
+        ]
+        read_only_fields = ['created_at']
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return obj.created_by.get_full_name() or obj.created_by.username
+        return 'System'

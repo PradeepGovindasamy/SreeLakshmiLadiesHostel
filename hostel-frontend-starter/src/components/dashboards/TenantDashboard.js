@@ -43,14 +43,15 @@ function RentStatusChip({ status, due }) {
 export default function TenantDashboard() {
   const { getUserName } = useUser();
 
-  const [profile,    setProfile]    = useState(null);
-  const [rentStatus, setRentStatus] = useState(null);
-  const [ledger,     setLedger]     = useState([]);
-  const [todayMenu,  setTodayMenu]  = useState([]);
-  const [weekMenu,   setWeekMenu]   = useState([]);
+  const [profile,      setProfile]      = useState(null);
+  const [rentStatus,   setRentStatus]   = useState(null);
+  const [ledger,       setLedger]       = useState([]);
+  const [todayMenu,    setTodayMenu]    = useState([]);
+  const [weekMenu,     setWeekMenu]     = useState([]);
+  const [availability, setAvailability] = useState([]);
 
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState('');
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState('');
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const [weekOpen,   setWeekOpen]   = useState(false);
 
@@ -58,18 +59,20 @@ export default function TenantDashboard() {
     try {
       setLoading(true);
       setError('');
-      const [profileRes, rentRes, ledgerRes, todayRes, weekRes] = await Promise.all([
-        myAPI.getProfile(),
-        myAPI.getRentStatus(),
-        myAPI.getRentLedger(),
+      const [profileRes, rentRes, ledgerRes, todayRes, weekRes, availRes] = await Promise.allSettled([
+        myAPI.profile(),
+        myAPI.rentStatus(),
+        myAPI.rentLedger(),
         enhancedAPI.foodMenu.today(),
         enhancedAPI.foodMenu.week(),
+        enhancedAPI.mealAvailability.myAvailability(),
       ]);
-      setProfile(profileRes.data);
-      setRentStatus(rentRes.data);
-      setLedger(ledgerRes.data?.ledger ?? ledgerRes.data ?? []);
-      setTodayMenu(todayRes.data?.results ?? todayRes.data ?? []);
-      setWeekMenu(weekRes.data?.results  ?? weekRes.data  ?? []);
+      if (profileRes.status === 'fulfilled') setProfile(profileRes.value.data);
+      if (rentRes.status === 'fulfilled')    setRentStatus(rentRes.value.data);
+      if (ledgerRes.status === 'fulfilled')  setLedger(ledgerRes.value.data?.ledger ?? ledgerRes.value.data ?? []);
+      if (todayRes.status === 'fulfilled')   setTodayMenu(todayRes.value.data?.results ?? todayRes.value.data ?? []);
+      if (weekRes.status === 'fulfilled')    setWeekMenu(weekRes.value.data?.results ?? weekRes.value.data ?? []);
+      if (availRes.status === 'fulfilled')   setAvailability(availRes.value.data ?? []);
     } catch (e) {
       setError('Failed to load dashboard data. Please try refreshing.');
     } finally {
@@ -97,6 +100,9 @@ export default function TenantDashboard() {
     return acc;
   }, {});
   const weekDates = Object.keys(weekByDate).sort();
+
+  // Availability for today (first element in availability array = today)
+  const todayAvail = availability[0]?.meals ?? {};
 
   return (
     <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1100, mx: 'auto' }}>
@@ -248,6 +254,36 @@ export default function TenantDashboard() {
             </CardContent>
           </Card>
         </Grid>
+
+        {/* ── Today's Meal Availability Summary ─────────────────────────────── */}
+        {Object.keys(todayAvail).length > 0 && (
+          <Grid item xs={12}>
+            <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3 }}>
+              <Box sx={{ height: 4, background: 'linear-gradient(135deg,#8b5cf6,#6d28d9)', borderRadius: '12px 12px 0 0' }} />
+              <CardContent>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                  <Typography variant="subtitle1" fontWeight={700}>Today's Meal Status</Typography>
+                  <Button size="small" variant="outlined" href="/my-availability">Manage Availability</Button>
+                </Box>
+                <Box display="flex" gap={1} flexWrap="wrap">
+                  {MEAL_TYPES.map(({ value, label }) => {
+                    const m = todayAvail[value];
+                    if (!m) return null;
+                    return (
+                      <Chip
+                        key={value}
+                        label={`${label}: ${m.is_available ? '✓ Eating' : '✗ Skipping'}`}
+                        size="small"
+                        color={m.is_available ? 'success' : 'default'}
+                        variant={m.is_available ? 'filled' : 'outlined'}
+                      />
+                    );
+                  })}
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
 
         {/* ── Today's Food Menu ─────────────────────────────────────────────── */}
         <Grid item xs={12}>

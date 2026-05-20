@@ -216,16 +216,47 @@ export const enhancedAPI = {
   },
 
   foodMenu: {
-    list: (params = {}) => {
-      const qs = new URLSearchParams(params).toString();
-      return api.get(`/api/v2/food-menu/${qs ? '?' + qs : ''}`);
-    },
+    list: (params = {}) => api.get('/api/v2/food-menu/', { params }),
     get: (id) => api.get(`/api/v2/food-menu/${id}/`),
     create: (data) => api.post('/api/v2/food-menu/', data),
     update: (id, data) => api.put(`/api/v2/food-menu/${id}/`, data),
+    patch: (id, data) => api.patch(`/api/v2/food-menu/${id}/`, data),
     delete: (id) => api.delete(`/api/v2/food-menu/${id}/`),
     today: () => api.get('/api/v2/food-menu/today/'),
     week: () => api.get('/api/v2/food-menu/week/'),
+  },
+
+  foodMenuItems: {
+    list: (params = {}) => api.get('/api/v2/food-menu-items/', { params }),
+    create: (data) => api.post('/api/v2/food-menu-items/', data),
+    update: (id, data) => api.put(`/api/v2/food-menu-items/${id}/`, data),
+    delete: (id) => api.delete(`/api/v2/food-menu-items/${id}/`),
+  },
+
+  menuIngredients: {
+    list: (params = {}) => api.get('/api/v2/menu-ingredients/', { params }),
+    create: (data) => api.post('/api/v2/menu-ingredients/', data),
+    update: (id, data) => api.put(`/api/v2/menu-ingredients/${id}/`, data),
+    delete: (id) => api.delete(`/api/v2/menu-ingredients/${id}/`),
+  },
+
+  mealAvailability: {
+    list: (params = {}) => api.get('/api/v2/meal-availability/', { params }),
+    myAvailability: () => api.get('/api/v2/meal-availability/my/'),
+    bulkUpdate: (updates) => api.post('/api/v2/meal-availability/bulk-update/', updates),
+    create: (data) => api.post('/api/v2/meal-availability/', data),
+    update: (id, data) => api.put(`/api/v2/meal-availability/${id}/`, data),
+    delete: (id) => api.delete(`/api/v2/meal-availability/${id}/`),
+  },
+
+  mealCounts: {
+    list: (params = {}) => api.get('/api/v2/meal-counts/', { params }),
+    live: (params = {}) => api.get('/api/v2/meal-counts/live/', { params }),
+    triggerConsumption: (data) => api.post('/api/v2/meal-counts/trigger-consumption/', data),
+  },
+
+  inventoryTransactions: {
+    list: (params = {}) => api.get('/api/groceries/transactions/', { params }),
   },
 };
 

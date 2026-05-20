@@ -111,6 +111,14 @@ if [ ! -f /etc/letsencrypt/live/sreelakshmiladieshostel.com/fullchain.pem ]; the
     echo "sudo certbot --nginx -d sreelakshmiladieshostel.com -d www.sreelakshmiladieshostel.com"
 fi
 
+# Setup kitchen automation cron jobs (idempotent)
+echo "⏰ Setting up kitchen automation cron jobs..."
+BACKEND_CONTAINER="hostel_admin_backend"
+CRON_MORNING="0 5 * * * docker exec ${BACKEND_CONTAINER} python manage.py derive_morning_consumption >> /var/log/hostel-morning-consumption.log 2>&1"
+CRON_EVENING="0 16 * * * docker exec ${BACKEND_CONTAINER} python manage.py derive_dinner_consumption >> /var/log/hostel-dinner-consumption.log 2>&1"
+( crontab -l 2>/dev/null | grep -v "derive_morning_consumption" | grep -v "derive_dinner_consumption"; echo "$CRON_MORNING"; echo "$CRON_EVENING" ) | crontab -
+echo "  ✅ Cron jobs set: 5 AM (breakfast/lunch), 4 PM (dinner)"
+
 echo "${GREEN}✅ Deployment completed!${NC}"
 echo ""
 echo "🌐 Your application should be accessible at:"

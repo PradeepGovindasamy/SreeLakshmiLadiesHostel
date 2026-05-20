@@ -1080,8 +1080,8 @@ class FoodMenuViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_serializer_class(self):
-        from .serializers import FoodMenuSerializer
-        return FoodMenuSerializer
+        from .views_kitchen import FoodMenuWithItemsSerializer
+        return FoodMenuWithItemsSerializer
 
     def get_queryset(self):
         from .models import FoodMenu
@@ -1133,15 +1133,17 @@ class FoodMenuViewSet(viewsets.ModelViewSet):
     def today(self, request):
         """Return all meals for today grouped by meal_type."""
         from datetime import date
-        from .serializers import FoodMenuSerializer
-        menus = FoodMenu.objects.filter(date=date.today())
-        return Response(FoodMenuSerializer(menus, many=True).data)
+        from .views_kitchen import FoodMenuWithItemsSerializer
+        menus = FoodMenu.objects.filter(date=date.today()).prefetch_related('menu_items__ingredients__grocery_item')
+        return Response(FoodMenuWithItemsSerializer(menus, many=True).data)
 
     @action(detail=False, methods=['get'], url_path='week')
     def week(self, request):
         """Return meals for today + next 6 days grouped by date."""
         from datetime import date, timedelta
-        from .serializers import FoodMenuSerializer
+        from .views_kitchen import FoodMenuWithItemsSerializer
         today = date.today()
-        menus = FoodMenu.objects.filter(date__gte=today, date__lte=today + timedelta(days=6))
-        return Response(FoodMenuSerializer(menus, many=True).data)
+        menus = FoodMenu.objects.filter(
+            date__gte=today, date__lte=today + timedelta(days=6)
+        ).prefetch_related('menu_items__ingredients__grocery_item')
+        return Response(FoodMenuWithItemsSerializer(menus, many=True).data)
