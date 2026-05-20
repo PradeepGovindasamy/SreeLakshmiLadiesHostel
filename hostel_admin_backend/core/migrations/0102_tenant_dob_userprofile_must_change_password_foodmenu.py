@@ -6,7 +6,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0100_make_email_unique'),
+        ('core', '0101_tenant_status_indexes'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

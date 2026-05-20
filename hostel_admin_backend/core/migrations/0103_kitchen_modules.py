@@ -7,11 +7,11 @@ class Migration(migrations.Migration):
     """
     Adds FoodMenuItem, MenuIngredient, TenantMealAvailability, MealCountSnapshot.
 
-    Linear chain: 0102 -> 0101 (no-op bridge) -> 0103.
+    Linear chain: 0101_tenant_status_indexes -> 0102 -> 0103.
     """
 
     dependencies = [
-        ('core', '0101_kitchen_modules'),
+        ('core', '0102_tenant_dob_userprofile_must_change_password_foodmenu'),
         ('groceries', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
