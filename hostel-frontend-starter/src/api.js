@@ -203,6 +203,7 @@ export const enhancedAPI = {
     getPayments:    (id)         => api.get(`/api/v2/tenants/${id}/payments/`),
     getRentLedger:  (id)         => api.get(`/api/v2/tenants/${id}/rent-ledger/`),
     getRentStatus:  (id, month)  => api.get(`/api/v2/tenants/${id}/rent-status/`, month ? { params: { month } } : {}),
+    recordPayment:  (id, data)   => api.post(`/api/v2/tenants/${id}/record-payment/`, data),
     checkout:       (id, data)   => api.post(`/api/v2/tenants/${id}/checkout/`, data),
     reactivate:     (id)         => api.post(`/api/v2/tenants/${id}/reactivate/`),
   },

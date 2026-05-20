@@ -636,6 +636,100 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
             'ledger': ledger,
         })
 
+    @action(detail=True, methods=['post'], url_path='record-payment')
+    def record_payment(self, request, pk=None):
+        """
+        POST /api/v2/tenants/{id}/record-payment/
+
+        Record or update a rent payment for a specific month.
+        Uses update_or_create so partial payments can be topped-up safely
+        without violating the unique_together(tenant, for_month) constraint.
+
+        Body:
+            for_month       str  YYYY-MM or YYYY-MM-DD (required)
+            amount_paid     num  payment amount (required)
+            payment_method  str  cash|upi|bank_transfer|card|cheque (default: cash)
+            payment_date    str  YYYY-MM-DD (default: today)
+            reference_number str (optional)
+            notes           str  (optional)
+        """
+        from datetime import date as date_type, datetime
+        from decimal import Decimal, InvalidOperation
+
+        tenant = self.get_object()  # enforces has_object_permission
+
+        # ── Validate for_month ─────────────────────────────────────────
+        raw_month = request.data.get('for_month', '')
+        if not raw_month:
+            return Response(
+                {'error': 'for_month is required. Use YYYY-MM format.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            for_month_date = datetime.strptime(raw_month[:7], '%Y-%m').date().replace(day=1)
+        except ValueError:
+            return Response(
+                {'error': f'Invalid for_month: "{raw_month}". Use YYYY-MM.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── Validate amount ────────────────────────────────────────────
+        raw_amount = request.data.get('amount_paid')
+        if raw_amount is None:
+            return Response(
+                {'error': 'amount_paid is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            amount = Decimal(str(raw_amount))
+            if amount <= 0:
+                raise ValueError('must be positive')
+        except (InvalidOperation, ValueError):
+            return Response(
+                {'error': 'amount_paid must be a positive number.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── Parse payment_date ─────────────────────────────────────────
+        raw_pd = request.data.get('payment_date', '')
+        try:
+            payment_date = datetime.strptime(raw_pd, '%Y-%m-%d').date() if raw_pd else date_type.today()
+        except ValueError:
+            payment_date = date_type.today()
+
+        payment_method   = request.data.get('payment_method', 'cash')
+        reference_number = request.data.get('reference_number', '')
+        notes            = request.data.get('notes', '')
+
+        payment, created = RentPayment.objects.update_or_create(
+            tenant=tenant,
+            for_month=for_month_date,
+            defaults={
+                'amount_paid':     amount,
+                'payment_date':    payment_date,
+                'payment_method':  payment_method,
+                'reference_number': reference_number,
+                'notes':           notes,
+                'collected_by':    request.user,
+            },
+        )
+
+        action_word = 'recorded' if created else 'updated'
+        logger.info(
+            'Rent payment %s for tenant %s (id=%s) month=%s amount=%s by %s',
+            action_word, tenant.name, tenant.pk, for_month_date, amount, request.user,
+        )
+
+        serializer = RentPaymentSerializer(payment)
+        return Response(
+            {
+                'message': f'Payment {action_word} successfully.',
+                'created': created,
+                'payment': serializer.data,
+            },
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
     @action(detail=True, methods=['get'], url_path='rent-status')
     def rent_status(self, request, pk=None):
         """
