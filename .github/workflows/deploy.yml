@@ -23,14 +23,23 @@ jobs:
           echo "$PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
           
-          # Copy files to EC2
-          scp -i private_key.pem -o StrictHostKeyChecking=no -r \
+          # Copy files to EC2 (rsync --delete removes stale files like old migrations)
+          rsync -avz --delete \
+            -e "ssh -i private_key.pem -o StrictHostKeyChecking=no" \
             docker-compose.yml \
-            hostel_admin_backend/ \
-            hostel-frontend-starter/ \
             deploy-production.sh \
             nginx-production.conf \
             ${USER}@${HOST}:~/sreelakshmi-hostel/
+
+          rsync -avz --delete \
+            -e "ssh -i private_key.pem -o StrictHostKeyChecking=no" \
+            hostel_admin_backend/ \
+            ${USER}@${HOST}:~/sreelakshmi-hostel/hostel_admin_backend/
+
+          rsync -avz --delete \
+            -e "ssh -i private_key.pem -o StrictHostKeyChecking=no" \
+            hostel-frontend-starter/ \
+            ${USER}@${HOST}:~/sreelakshmi-hostel/hostel-frontend-starter/
           
           # Execute deployment script on EC2
           ssh -i private_key.pem -o StrictHostKeyChecking=no ${USER}@${HOST} << 'EOF'

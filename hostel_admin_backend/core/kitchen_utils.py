@@ -48,21 +48,53 @@ def get_cutoff_display(date, meal_type):
 # Meal count derivation
 # ---------------------------------------------------------------------------
 
-def derive_meal_count(date, meal_type):
+def get_active_tenants_for_meals(date, branch_id=None, user=None):
     """
-    Dynamically calculate how many residents will eat a given meal.
+    Return tenants who should be included in meal counts.
+
+    Matches the Tenants page definition of ACTIVE:
+      - joining_date is set and on/before the meal date
+      - vacating_date is null
+      - assigned to a room (actually residing in the hostel)
+
+    Optionally scoped by branch and/or the requesting user's role.
+    """
+    from core.models import Tenant, WardenAssignment
+
+    qs = Tenant.objects.filter(
+        joining_date__isnull=False,
+        joining_date__lte=date,
+        vacating_date__isnull=True,
+        room__isnull=False,
+    )
+
+    if branch_id:
+        qs = qs.filter(room__branch_id=branch_id)
+    elif user and hasattr(user, 'profile'):
+        role = user.profile.role
+        if role == 'owner':
+            qs = qs.filter(room__branch__owner=user)
+        elif role == 'warden':
+            branch_ids = WardenAssignment.objects.filter(
+                warden=user, is_active=True,
+            ).values_list('branch_id', flat=True)
+            qs = qs.filter(room__branch_id__in=branch_ids)
+
+    return qs
+
+
+def derive_meal_count(date, meal_type, branch_id=None, user=None):
+    """
+    Dynamically calculate how many tenants will eat a given meal.
 
     Returns a dict:
-        total_residents: all active tenants (joining_date set, vacating_date null)
+        total_residents: active tenants in scope (see get_active_tenants_for_meals)
         unavailable_count: those who opted out
         meal_count: total_residents − unavailable_count
     """
-    from core.models import Tenant, TenantMealAvailability
+    from core.models import TenantMealAvailability
 
-    active_tenants = Tenant.objects.filter(
-        joining_date__isnull=False,
-        vacating_date__isnull=True,
-    )
+    active_tenants = get_active_tenants_for_meals(date, branch_id=branch_id, user=user)
     total_residents = active_tenants.count()
 
     unavailable_count = TenantMealAvailability.objects.filter(
@@ -105,10 +137,10 @@ def generate_consumption_for_meal(date, meal_type, branch, triggered_by=None):
     Returns a dict summarising what was done.
     """
     from core.models import FoodMenu, MealCountSnapshot
-    from groceries.models import InventoryTransaction
+    from groceries.inventory_service import record_inventory_transaction
 
-    # Step 1: snapshot meal count
-    count_data = derive_meal_count(date, meal_type)
+    # Step 1: snapshot meal count (scoped to this branch)
+    count_data = derive_meal_count(date, meal_type, branch_id=branch.id)
     meal_count = count_data['meal_count']
 
     snapshot, created = MealCountSnapshot.objects.get_or_create(
@@ -156,7 +188,7 @@ def generate_consumption_for_meal(date, meal_type, branch, triggered_by=None):
                     ingredient.quantity_per_person * meal_count,
                     ingredient.unit,
                 )
-                txn = InventoryTransaction(
+                txn = record_inventory_transaction(
                     branch=branch,
                     grocery_item=ingredient.grocery_item,
                     transaction_type='consumption',
@@ -167,7 +199,6 @@ def generate_consumption_for_meal(date, meal_type, branch, triggered_by=None):
                     notes=f"{dish.name} × {meal_count} persons on {date} {meal_type}",
                     created_by=triggered_by,
                 )
-                txn.save()
                 transactions_created.append(txn)
 
     # Step 3: mark snapshot done

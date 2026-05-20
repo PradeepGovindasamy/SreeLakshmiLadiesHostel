@@ -67,6 +67,10 @@ sudo fuser -k 8000/tcp 2>/dev/null || echo "  ℹ️  No process on port 8000"
 echo "🧹 Cleaning up old images..."
 docker image prune -f
 
+# Remove stale migration files left behind by scp (scp does not delete removed files)
+echo "🧹 Removing obsolete migration files..."
+rm -f hostel_admin_backend/core/migrations/0101_kitchen_modules.py
+
 # Build and start containers
 echo "🏗️  Building Docker images..."
 docker compose build --no-cache

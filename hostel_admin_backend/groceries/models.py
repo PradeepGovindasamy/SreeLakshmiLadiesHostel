@@ -229,25 +229,6 @@ class InventoryTransaction(models.Model):
         related_name='inventory_transactions'
     )
 
-    def save(self, *args, **kwargs):
-        is_new = self.pk is None
-        super().save(*args, **kwargs)
-        if is_new:
-            self._update_stock()
-
-    def _update_stock(self):
-        """Adjust GroceryStock.quantity based on transaction type."""
-        stock, _ = GroceryStock.objects.get_or_create(
-            branch=self.branch,
-            item=self.grocery_item,
-            defaults={'quantity': 0}
-        )
-        if self.transaction_type in ('purchase', 'adjustment'):
-            stock.quantity = models.F('quantity') + self.quantity
-        else:
-            stock.quantity = models.F('quantity') - abs(self.quantity)
-        stock.save(update_fields=['quantity'])
-
     def __str__(self):
         return f"{self.transaction_type} {abs(self.quantity)}{self.unit} {self.grocery_item.name} [{self.branch.name}]"
 

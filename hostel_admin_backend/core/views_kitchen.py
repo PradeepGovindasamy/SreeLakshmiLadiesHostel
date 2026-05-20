@@ -370,6 +370,7 @@ class MealCountViewSet(viewsets.ReadOnlyModelViewSet):
         """Return live (dynamic, not persisted) meal count for a given date."""
         date_str = request.query_params.get('date', str(date.today()))
         meal_type = request.query_params.get('meal_type')
+        branch_id = request.query_params.get('branch_id')
 
         try:
             from datetime import datetime
@@ -377,12 +378,22 @@ class MealCountViewSet(viewsets.ReadOnlyModelViewSet):
         except ValueError:
             return Response({'error': 'Invalid date format.'}, status=400)
 
+        branch_id_int = int(branch_id) if branch_id else None
+
         meal_types = [meal_type] if meal_type else ['breakfast', 'lunch', 'snacks', 'dinner']
         result = {}
         for mt in meal_types:
-            result[mt] = derive_meal_count(target_date, mt)
+            result[mt] = derive_meal_count(
+                target_date, mt,
+                branch_id=branch_id_int,
+                user=request.user,
+            )
 
-        return Response({'date': date_str, 'counts': result})
+        return Response({
+            'date': date_str,
+            'branch_id': branch_id_int,
+            'counts': result,
+        })
 
     @action(detail=False, methods=['post'], url_path='trigger-consumption')
     def trigger_consumption(self, request):

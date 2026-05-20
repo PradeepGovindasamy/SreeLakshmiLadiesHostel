@@ -257,6 +257,42 @@ export const enhancedAPI = {
 
   inventoryTransactions: {
     list: (params = {}) => api.get('/api/groceries/transactions/', { params }),
+    record: (data) => api.post('/api/groceries/transactions/record/', data),
+  },
+};
+
+export const groceriesAPI = {
+  categories: {
+    list: () => api.get('/api/groceries/categories/'),
+    create: (data) => api.post('/api/groceries/categories/', data),
+    update: (id, data) => api.put(`/api/groceries/categories/${id}/`, data),
+    delete: (id) => api.delete(`/api/groceries/categories/${id}/`),
+  },
+  items: {
+    list: (params = {}) => api.get('/api/groceries/items/', { params }),
+    create: (data) => api.post('/api/groceries/items/', data),
+    update: (id, data) => api.put(`/api/groceries/items/${id}/`, data),
+    delete: (id) => api.delete(`/api/groceries/items/${id}/`),
+    history: (id, params = {}) => api.get(`/api/groceries/items/${id}/history/`, { params }),
+  },
+  vendors: {
+    list: () => api.get('/api/groceries/vendors/'),
+    create: (data) => api.post('/api/groceries/vendors/', data),
+    update: (id, data) => api.put(`/api/groceries/vendors/${id}/`, data),
+    delete: (id) => api.delete(`/api/groceries/vendors/${id}/`),
+  },
+  stock: {
+    list: (params = {}) => api.get('/api/groceries/stock/', { params }),
+    dashboard: (params = {}) => api.get('/api/groceries/stock/dashboard/', { params }),
+    history: (id) => api.get(`/api/groceries/stock/${id}/history/`),
+  },
+  purchases: {
+    list: (params = {}) => api.get('/api/groceries/purchases/', { params }),
+    record: (data) => api.post('/api/groceries/purchases/record/', data),
+  },
+  transactions: {
+    list: (params = {}) => api.get('/api/groceries/transactions/', { params }),
+    record: (data) => api.post('/api/groceries/transactions/record/', data),
   },
 };
 
