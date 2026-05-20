@@ -289,12 +289,13 @@ function ActiveTenantsSection() {
         />
       )}
 
-      {/* Tenant Details Dialog - EXISTING functionality preserved */}
+      {/* Tenant Details Dialog */}
       {detailsDialog && (
         <TenantDetailsDialog
           open={detailsDialog}
           onClose={() => setDetailsDialog(false)}
           tenant={selectedTenant}
+          onPaymentRecorded={fetchActiveTenants}
         />
       )}
 

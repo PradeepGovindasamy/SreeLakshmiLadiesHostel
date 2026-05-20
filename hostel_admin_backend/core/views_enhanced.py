@@ -705,12 +705,12 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
             tenant=tenant,
             for_month=for_month_date,
             defaults={
-                'amount_paid':     amount,
-                'payment_date':    payment_date,
-                'payment_method':  payment_method,
+                'amount_paid':      amount,
+                'payment_date':     payment_date,
+                'payment_method':   payment_method,
                 'reference_number': reference_number,
-                'notes':           notes,
-                'collected_by':    request.user,
+                'notes':            notes,
+                'collected_by':     request.user,
             },
         )
 
@@ -720,12 +720,23 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
             action_word, tenant.name, tenant.pk, for_month_date, amount, request.user,
         )
 
-        serializer = RentPaymentSerializer(payment)
+        # Return a lightweight response — avoid the nested TenantSerializer
+        # chain (Tenant → Room → Branch) which can fail if related objects
+        # are not pre-fetched on the freshly updated payment instance.
         return Response(
             {
                 'message': f'Payment {action_word} successfully.',
                 'created': created,
-                'payment': serializer.data,
+                'payment': {
+                    'id':               payment.pk,
+                    'for_month':        payment.for_month.strftime('%Y-%m-%d'),
+                    'for_month_display': for_month_date.strftime('%B %Y'),
+                    'amount_paid':      float(payment.amount_paid),
+                    'payment_method':   payment.payment_method,
+                    'payment_date':     payment.payment_date.strftime('%Y-%m-%d'),
+                    'reference_number': payment.reference_number,
+                    'notes':            payment.notes,
+                },
             },
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )

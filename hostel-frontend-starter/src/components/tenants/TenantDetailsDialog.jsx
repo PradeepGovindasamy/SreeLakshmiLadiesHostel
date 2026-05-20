@@ -260,7 +260,7 @@ function RecordPaymentDialog({ open, onClose, entry, tenantId, tenantName, onSuc
 }
 
 // ── Main dialog ───────────────────────────────────────────────────────────────
-function TenantDetailsDialog({ open, onClose, tenant, readOnly = false }) {
+function TenantDetailsDialog({ open, onClose, tenant, readOnly = false, onPaymentRecorded }) {
   const [ledger, setLedger]               = useState([]);
   const [summary, setSummary]             = useState(null);
   const [ledgerLoading, setLedgerLoading] = useState(false);
@@ -302,7 +302,8 @@ function TenantDetailsDialog({ open, onClose, tenant, readOnly = false }) {
 
   const handlePaymentSuccess = (message) => {
     setSuccessMsg(message);
-    fetchLedger(); // Refresh ledger to show updated status
+    fetchLedger();          // Refresh ledger rows inside this dialog
+    onPaymentRecorded?.();  // Tell parent table to refresh rent status chips
     setTimeout(() => setSuccessMsg(''), 4000);
   };
 
