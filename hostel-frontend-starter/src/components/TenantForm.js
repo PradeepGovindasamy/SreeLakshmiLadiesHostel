@@ -953,6 +953,7 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
   };
 
   return (
+    <>
     <Dialog 
       open={open} 
       onClose={handleClose}
@@ -1048,6 +1049,7 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
         </Button>
       </DialogActions>
     </Dialog>
+    </>
   );
 }
 
