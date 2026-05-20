@@ -5,14 +5,13 @@ import django.db.models.deletion
 
 class Migration(migrations.Migration):
     """
-    Adds FoodMenuItem, MenuIngredient, ResidentMealAvailability, MealCountSnapshot.
+    Adds FoodMenuItem, MenuIngredient, TenantMealAvailability, MealCountSnapshot.
 
-    Depends on 0102 (which already added date_of_birth, must_change_password, FoodMenu).
-    Depends on groceries 0001 for GroceryItem FK in MenuIngredient.
+    Linear chain: 0102 -> 0101 (no-op bridge) -> 0103.
     """
 
     dependencies = [
-        ('core', '0102_tenant_dob_userprofile_must_change_password_foodmenu'),
+        ('core', '0101_kitchen_modules'),
         ('groceries', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
