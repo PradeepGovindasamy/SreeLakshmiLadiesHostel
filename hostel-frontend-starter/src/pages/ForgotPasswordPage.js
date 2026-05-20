@@ -7,13 +7,15 @@ import {
   Alert,
   CircularProgress,
   Paper,
-  Link
+  Link,
+  InputAdornment
 } from '@mui/material';
-import { Email } from '@mui/icons-material';
+import { Email, Person } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const ForgotPasswordPage = () => {
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -23,36 +25,32 @@ const ForgotPasswordPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
 
-    if (!email) {
-      setError('Please enter your email address');
-      setLoading(false);
+    if (!username.trim()) {
+      setError('Please enter your username');
       return;
     }
-
-    // Basic email validation
+    if (!email.trim()) {
+      setError('Please enter your email address');
+      return;
+    }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       setError('Please enter a valid email address');
-      setLoading(false);
       return;
     }
 
+    setLoading(true);
     try {
       const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
-      await axios.post(`${API_BASE_URL}/api/auth/password-reset/`, { email });
-      
+      await axios.post(`${API_BASE_URL}/api/auth/password-reset/`, { username, email });
       setSuccess(true);
-    } catch (error) {
-      console.error('Password reset request error:', error);
-      if (error.response?.data?.error) {
-        setError(error.response.data.error);
-      } else {
-        // Show success message even on error for security reasons
-        // (don't reveal if email exists in system)
-        setSuccess(true);
-      }
+    } catch (err) {
+      const msg =
+        err.response?.data?.error ||
+        err.response?.data?.detail ||
+        'Failed to send reset email. Please try again.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -60,30 +58,16 @@ const ForgotPasswordPage = () => {
 
   if (success) {
     return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="100vh"
-        sx={{ bgcolor: '#f5f5f5' }}
-      >
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh" sx={{ bgcolor: '#f5f5f5' }}>
         <Paper elevation={3} sx={{ p: 4, maxWidth: 500, width: '100%' }}>
           <Typography variant="h5" gutterBottom align="center" color="primary">
             Check Your Email
           </Typography>
           <Alert severity="success" sx={{ mt: 2, mb: 3 }}>
-            If an account exists with the email <strong>{email}</strong>, you will receive 
-            password reset instructions shortly.
+            A password reset link has been sent to <strong>{email}</strong>. Please check your
+            inbox and spam folder. The link will expire in 1 hour.
           </Alert>
-          <Typography variant="body2" color="textSecondary" align="center" paragraph>
-            Please check your inbox and spam folder. The reset link will expire in 1 hour.
-          </Typography>
-          <Button
-            fullWidth
-            variant="contained"
-            onClick={() => navigate('/login')}
-            sx={{ mt: 2 }}
-          >
+          <Button fullWidth variant="contained" onClick={() => navigate('/login')} sx={{ mt: 2 }}>
             Back to Login
           </Button>
         </Paper>
@@ -92,19 +76,13 @@ const ForgotPasswordPage = () => {
   }
 
   return (
-    <Box
-      display="flex"
-      justifyContent="center"
-      alignItems="center"
-      minHeight="100vh"
-      sx={{ bgcolor: '#f5f5f5' }}
-    >
-      <Paper elevation={3} sx={{ p: 4, maxWidth: 400, width: '100%' }}>
+    <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh" sx={{ bgcolor: '#f5f5f5' }}>
+      <Paper elevation={3} sx={{ p: 4, maxWidth: 420, width: '100%' }}>
         <Typography variant="h5" gutterBottom align="center">
           Reset Password
         </Typography>
         <Typography variant="body2" color="textSecondary" align="center" paragraph>
-          Enter your email address and we'll send you a link to reset your password.
+          Enter your username and registered email address. We'll send a reset link if they match.
         </Typography>
 
         {error && (
@@ -116,15 +94,34 @@ const ForgotPasswordPage = () => {
         <form onSubmit={handleSubmit}>
           <TextField
             fullWidth
-            label="Email Address"
+            label="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            margin="normal"
+            disabled={loading}
+            autoFocus
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Person sx={{ color: 'action.active' }} />
+                </InputAdornment>
+              ),
+            }}
+          />
+          <TextField
+            fullWidth
+            label="Registered Email Address"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             margin="normal"
             disabled={loading}
-            autoFocus
             InputProps={{
-              startAdornment: <Email sx={{ mr: 1, color: 'action.active' }} />,
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Email sx={{ color: 'action.active' }} />
+                </InputAdornment>
+              ),
             }}
           />
 

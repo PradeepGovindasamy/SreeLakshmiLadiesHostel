@@ -652,7 +652,7 @@ function UserManagement() {
 
       {/* Summary Cards */}
       <Grid container spacing={3} mb={3}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={2}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center">
@@ -667,8 +667,8 @@ function UserManagement() {
             </CardContent>
           </Card>
         </Grid>
-        
-        <Grid item xs={12} sm={6} md={3}>
+
+        <Grid item xs={12} sm={6} md={2}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center">
@@ -683,8 +683,8 @@ function UserManagement() {
             </CardContent>
           </Card>
         </Grid>
-        
-        <Grid item xs={12} sm={6} md={3}>
+
+        <Grid item xs={12} sm={6} md={2}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center">
@@ -699,16 +699,32 @@ function UserManagement() {
             </CardContent>
           </Card>
         </Grid>
-        
-        <Grid item xs={12} sm={6} md={3}>
+
+        <Grid item xs={12} sm={6} md={2}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center">
                 <WardenIcon color="warning" sx={{ mr: 2 }} />
                 <Box>
-                  <Typography variant="h6">{wardenUsers + tenantUsers}</Typography>
+                  <Typography variant="h6">{wardenUsers}</Typography>
                   <Typography variant="body2" color="textSecondary">
-                    Wardens & Tenants
+                    Wardens
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={2}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center">
+                <TenantIcon color="success" sx={{ mr: 2 }} />
+                <Box>
+                  <Typography variant="h6">{tenantUsers}</Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    Tenants
                   </Typography>
                 </Box>
               </Box>

@@ -286,6 +286,7 @@ function ActiveTenantsSection() {
           onClose={handleFormClose}
           onSave={handleFormSave}
           tenant={editingTenant}
+          isEdit={!!editingTenant}
         />
       )}
 

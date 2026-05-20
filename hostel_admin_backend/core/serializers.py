@@ -124,9 +124,12 @@ class BranchSerializer(serializers.ModelSerializer):
         ).distinct().count()
     
     def get_occupied_beds(self, obj):
-        # Count total tenants across all rooms who have joining_date (active tenants)
+        # Count active tenants only (joined and not yet vacated) — matches Room.current_occupancy
         return obj.rooms.aggregate(
-            total=Count('tenants', filter=Q(tenants__joining_date__isnull=False))
+            total=Count('tenants', filter=Q(
+                tenants__joining_date__isnull=False,
+                tenants__vacating_date__isnull=True,
+            ))
         )['total'] or 0
     
     def get_total_beds(self, obj):

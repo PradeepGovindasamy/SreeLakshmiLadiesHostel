@@ -82,8 +82,10 @@ const OwnerDashboard = () => {
     properties: [],
     tenants: [],
     statistics: {
-      totalProperties: 0, totalRooms: 0, occupiedRooms: 0,
-      totalTenants: 0, pendingRequests: 0, monthlyRevenue: 0
+      totalProperties: 0,
+      totalRooms: 0, occupiedRooms: 0,
+      totalBeds: 0, occupiedBeds: 0, vacantBeds: 0,
+      totalTenants: 0, pendingRequests: 0, monthlyRevenue: 0,
     }
   });
 
@@ -99,8 +101,12 @@ const OwnerDashboard = () => {
       const properties = propertiesRes.data.results || propertiesRes.data;
       const tenants = tenantsRes.data.results || tenantsRes.data;
 
-      const totalRooms    = properties.reduce((s, p) => s + (p.total_rooms || p.num_rooms || 0), 0);
+      // Aggregate from branch-level stats (computed accurately by BranchSerializer)
+      const totalRooms    = properties.reduce((s, p) => s + (p.total_rooms  || p.num_rooms || 0), 0);
       const occupiedRooms = properties.reduce((s, p) => s + (p.occupied_rooms || 0), 0);
+      const totalBeds     = properties.reduce((s, p) => s + (p.total_beds   || 0), 0);
+      const occupiedBeds  = properties.reduce((s, p) => s + (p.occupied_beds || 0), 0);
+      const vacantBeds    = properties.reduce((s, p) => s + (p.vacant_beds  || 0), 0);
       const monthlyRevenue = tenants.reduce((s, t) => s + (parseFloat(t.rent_amount) || 0), 0);
 
       setDashboardData({
@@ -110,6 +116,9 @@ const OwnerDashboard = () => {
           totalProperties: properties.length,
           totalRooms,
           occupiedRooms,
+          totalBeds,
+          occupiedBeds,
+          vacantBeds,
           totalTenants: tenants.length,
           pendingRequests: 0,
           monthlyRevenue,
@@ -144,8 +153,10 @@ const OwnerDashboard = () => {
   }
 
   const { properties, tenants, statistics } = dashboardData;
-  const occupancyRate = statistics.totalRooms > 0
+  const roomOccupancyRate = statistics.totalRooms > 0
     ? Math.round((statistics.occupiedRooms / statistics.totalRooms) * 100) : 0;
+  const bedOccupancyRate = statistics.totalBeds > 0
+    ? Math.round((statistics.occupiedBeds / statistics.totalBeds) * 100) : 0;
 
   return (
     <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1400, mx: 'auto' }}>
@@ -175,7 +186,7 @@ const OwnerDashboard = () => {
           },
           {
             title: 'Occupied Rooms', value: statistics.occupiedRooms,
-            subtitle: `${occupancyRate}% occupancy rate`,
+            subtitle: `${roomOccupancyRate}% room occupancy`,
             icon: <Home sx={{ fontSize: 22 }} />,
             gradient: 'linear-gradient(135deg,#10b981,#059669)',
           },
@@ -185,8 +196,8 @@ const OwnerDashboard = () => {
             gradient: 'linear-gradient(135deg,#f59e0b,#ef4444)',
           },
           {
-            title: 'Vacant Rooms', value: statistics.totalRooms - statistics.occupiedRooms,
-            subtitle: `${100 - occupancyRate}% available`,
+            title: 'Vacant Beds', value: statistics.vacantBeds,
+            subtitle: `${statistics.occupiedBeds}/${statistics.totalBeds} beds occupied`,
             icon: <TrendingUp sx={{ fontSize: 22 }} />,
             gradient: 'linear-gradient(135deg,#8b5cf6,#7c3aed)',
           },
@@ -203,23 +214,41 @@ const OwnerDashboard = () => {
         ))}
       </Grid>
 
-      {/* ── Overall occupancy bar ── */}
+      {/* ── Overall occupancy bars ── */}
       <Paper elevation={0} sx={{ p: 3, mb: 4, border: '1px solid #e2e8f0', borderRadius: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="body2" fontWeight={600}>Overall Occupancy</Typography>
-          <Typography variant="body2" fontWeight={700} color={occupancyRate >= 80 ? 'error.main' : 'success.main'}>
-            {occupancyRate}%
+          <Typography variant="body2" fontWeight={600}>Room Occupancy</Typography>
+          <Typography variant="body2" fontWeight={700} color={roomOccupancyRate >= 80 ? 'error.main' : 'success.main'}>
+            {roomOccupancyRate}%
           </Typography>
         </Box>
         <LinearProgress
           variant="determinate"
-          value={occupancyRate}
-          color={occupancyRate >= 90 ? 'error' : occupancyRate >= 60 ? 'warning' : 'success'}
+          value={roomOccupancyRate}
+          color={roomOccupancyRate >= 90 ? 'error' : roomOccupancyRate >= 60 ? 'warning' : 'success'}
           sx={{ height: 10, borderRadius: 5 }}
         />
         <Stack direction="row" spacing={3} mt={1.5}>
           <Typography variant="caption" color="text.secondary">
-            {statistics.occupiedRooms} occupied &nbsp;·&nbsp; {statistics.totalRooms - statistics.occupiedRooms} vacant
+            {statistics.occupiedRooms} occupied &nbsp;·&nbsp; {statistics.totalRooms - statistics.occupiedRooms} vacant rooms
+          </Typography>
+        </Stack>
+
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, mt: 2 }}>
+          <Typography variant="body2" fontWeight={600}>Bed Occupancy</Typography>
+          <Typography variant="body2" fontWeight={700} color={bedOccupancyRate >= 80 ? 'error.main' : 'success.main'}>
+            {bedOccupancyRate}%
+          </Typography>
+        </Box>
+        <LinearProgress
+          variant="determinate"
+          value={bedOccupancyRate}
+          color={bedOccupancyRate >= 90 ? 'error' : bedOccupancyRate >= 60 ? 'warning' : 'success'}
+          sx={{ height: 10, borderRadius: 5 }}
+        />
+        <Stack direction="row" spacing={3} mt={1.5}>
+          <Typography variant="caption" color="text.secondary">
+            {statistics.occupiedBeds} occupied &nbsp;·&nbsp; {statistics.vacantBeds} vacant beds &nbsp;·&nbsp; {statistics.totalBeds} total
           </Typography>
         </Stack>
       </Paper>
@@ -256,9 +285,10 @@ const OwnerDashboard = () => {
                         </TableCell>
                       </TableRow>
                     ) : properties.map((p) => {
-                      const rooms = p.total_rooms || p.num_rooms || 0;
-                      const occ   = p.occupied_rooms || 0;
-                      const pct   = rooms > 0 ? Math.round((occ / rooms) * 100) : 0;
+                      const rooms      = p.total_rooms || p.num_rooms || 0;
+                      const totalBeds  = p.total_beds  || 0;
+                      const occBeds    = p.occupied_beds || 0;
+                      const bedPct     = totalBeds > 0 ? Math.round((occBeds / totalBeds) * 100) : 0;
                       return (
                         <TableRow key={p.id} sx={{ '&:hover': { backgroundColor: '#f8fafc' } }}>
                           <TableCell>
@@ -269,20 +299,25 @@ const OwnerDashboard = () => {
                             <Typography variant="body2" color="text.secondary">{p.city || '—'}</Typography>
                           </TableCell>
                           <TableCell align="center">
-                            <Chip label={rooms} size="small" sx={{ fontWeight: 600, minWidth: 36 }} />
+                            <Tooltip title={`${occBeds}/${totalBeds} beds occupied`}>
+                              <Chip label={`${rooms} rooms`} size="small" sx={{ fontWeight: 600 }} />
+                            </Tooltip>
                           </TableCell>
-                          <TableCell sx={{ minWidth: 120 }}>
+                          <TableCell sx={{ minWidth: 130 }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <LinearProgress
                                 variant="determinate"
-                                value={pct}
-                                color={pct >= 90 ? 'error' : pct >= 60 ? 'warning' : 'success'}
+                                value={bedPct}
+                                color={bedPct >= 90 ? 'error' : bedPct >= 60 ? 'warning' : 'success'}
                                 sx={{ flex: 1, height: 6, borderRadius: 3 }}
                               />
                               <Typography variant="caption" fontWeight={600} color="text.secondary">
-                                {pct}%
+                                {bedPct}%
                               </Typography>
                             </Box>
+                            <Typography variant="caption" color="text.secondary">
+                              {occBeds}/{totalBeds} beds
+                            </Typography>
                           </TableCell>
                           <TableCell align="center">
                             <Tooltip title="View details">

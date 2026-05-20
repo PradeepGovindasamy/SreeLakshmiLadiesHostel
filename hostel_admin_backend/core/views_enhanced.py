@@ -372,30 +372,45 @@ class EnhancedBranchViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['get'])
     def occupancy_stats(self, request, pk=None):
-        """Get occupancy statistics for a branch"""
+        """Get occupancy statistics for a branch.
+
+        Field names deliberately mirror BranchSerializer so the frontend can
+        use the same keys regardless of whether the data came from the list
+        endpoint or this detail endpoint.
+        """
         branch = self.get_object()
-        
-        rooms = Room.objects.filter(branch=branch)
+
+        rooms = Room.objects.filter(branch=branch).prefetch_related('tenants')
         total_rooms = rooms.count()
-        total_capacity = sum(room.sharing_type for room in rooms)
-        
-        active_tenants = Tenant.objects.filter(
-            room__branch=branch, 
-            vacating_date__isnull=True
+
+        # Total beds = sum of sharing_type (capacity) across all rooms
+        total_beds = sum(room.sharing_type or 0 for room in rooms)
+
+        # Active tenants = joined and not yet vacated (matches Room.current_occupancy)
+        occupied_beds = Tenant.objects.filter(
+            room__branch=branch,
+            joining_date__isnull=False,
+            vacating_date__isnull=True,
         ).count()
-        
+
+        vacant_beds = total_beds - occupied_beds
+
+        # Rooms that contain at least one active tenant
         occupied_rooms = Room.objects.filter(
             branch=branch,
-            tenants__vacating_date__isnull=True
+            tenants__joining_date__isnull=False,
+            tenants__vacating_date__isnull=True,
         ).distinct().count()
-        
+
         return Response({
             'total_rooms': total_rooms,
             'occupied_rooms': occupied_rooms,
-            'total_capacity': total_capacity,
-            'current_occupancy': active_tenants,
-            'occupancy_rate': (occupied_rooms / total_rooms * 100) if total_rooms > 0 else 0,
-            'capacity_utilization': (active_tenants / total_capacity * 100) if total_capacity > 0 else 0
+            'vacant_rooms': total_rooms - occupied_rooms,
+            'total_beds': total_beds,
+            'occupied_beds': occupied_beds,
+            'vacant_beds': vacant_beds,
+            'bed_occupancy_rate': (occupied_beds / total_beds * 100) if total_beds > 0 else 0,
+            'room_occupancy_rate': (occupied_rooms / total_rooms * 100) if total_rooms > 0 else 0,
         })
 
 

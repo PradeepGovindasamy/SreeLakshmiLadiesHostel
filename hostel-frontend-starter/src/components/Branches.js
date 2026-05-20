@@ -462,34 +462,34 @@ function Branches() {
                 <Typography variant="body2">Total Rooms</Typography>
               </Grid>
               <Grid item xs={6}>
+                <Typography variant="h6" color="warning.main">
+                  {branchStats.occupied_rooms}
+                </Typography>
+                <Typography variant="body2">Occupied Rooms</Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="h6" color="info.main">
+                  {branchStats.total_beds}
+                </Typography>
+                <Typography variant="body2">Total Beds</Typography>
+              </Grid>
+              <Grid item xs={6}>
                 <Typography variant="h6" color="secondary">
                   {branchStats.occupied_beds}
                 </Typography>
                 <Typography variant="body2">Occupied Beds</Typography>
               </Grid>
               <Grid item xs={6}>
-                <Typography variant="h6" color="info.main">
-                  {branchStats.total_capacity}
-                </Typography>
-                <Typography variant="body2">Vacant Beds</Typography>
-              </Grid>
-              <Grid item xs={6}>
                 <Typography variant="h6" color="success.main">
                   {branchStats.vacant_beds}
                 </Typography>
-                <Typography variant="body2">Current Tenants</Typography>
+                <Typography variant="body2">Vacant Beds</Typography>
               </Grid>
               <Grid item xs={6}>
                 <Typography variant="h6">
                   {Math.round(branchStats.bed_occupancy_rate)}%
                 </Typography>
                 <Typography variant="body2">Bed Occupancy Rate</Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography variant="h6">
-                  {Math.round(branchStats.capacity_utilization)}%
-                </Typography>
-                <Typography variant="body2">Capacity Utilization</Typography>
               </Grid>
             </Grid>
           )}

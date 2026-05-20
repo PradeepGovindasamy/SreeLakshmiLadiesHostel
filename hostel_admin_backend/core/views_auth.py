@@ -570,68 +570,77 @@ def available_branches(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def password_reset_request(request):
-    """Request password reset - sends email with reset link"""
-    email = request.data.get('email')
-    
+    """Request password reset.
+
+    Expects { username, email }.  Both fields must match the same account
+    in the database before a reset link is sent.  Clear error messages are
+    returned so the user knows exactly what is wrong (this is an internal
+    staff/tenant app, not a public registration system).
+    """
+    username = request.data.get('username', '').strip()
+    email = request.data.get('email', '').strip()
+
+    if not username:
+        return Response({'error': 'Username is required'}, status=status.HTTP_400_BAD_REQUEST)
     if not email:
-        return Response({
-            'error': 'Email is required'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
+        return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Look up user by username
     try:
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            # For security, always return success even if email doesn't exist
-            return Response({
-                'message': 'If the email exists, a reset link has been sent'
-            }, status=status.HTTP_200_OK)
-        
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+        logger.warning(f'Password reset: username "{username}" not found')
+        return Response(
+            {'error': f'No account found with username "{username}". Please check and try again.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    # Verify the provided email matches the account's email
+    if user.email.lower() != email.lower():
+        logger.warning(
+            f'Password reset: email mismatch for username "{username}" '
+            f'(provided: {email}, stored: {user.email})'
+        )
+        return Response(
+            {'error': 'The email address does not match the one registered for this account.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
         # Generate password reset token
         token = default_token_generator.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(user.pk))
-        
-        # Create reset link (adjust frontend URL as needed)
+
         frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
         reset_link = f"{frontend_url}/password-reset/confirm?token={uid}-{token}"
-        
-        # Email subject and message
-        subject = 'Password Reset - Sree Lakshmi Ladies Hostel'
-        message = f"""Hello {user.username},
 
-You requested to reset your password for Sree Lakshmi Ladies Hostel Management System.
-
-Click the link below to reset your password:
-{reset_link}
-
-This link will expire in 1 hour.
-
-If you did not request this, please ignore this email.
-
-Best regards,
-Sree Lakshmi Ladies Hostel Team
-"""
-        
-        # Send email
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', settings.EMAIL_HOST_USER)
-        send_mail(
-            subject,
-            message,
-            from_email,
-            [email],
-            fail_silently=False
+        subject = 'Your password reset link - Sree Lakshmi Ladies Hostel'
+        message = (
+            f"Hello {user.get_full_name() or user.username},\n\n"
+            f"We received a request to reset the password for your account "
+            f"({user.username}) on Sree Lakshmi Ladies Hostel Management System.\n\n"
+            f"To set a new password, copy and paste the link below into your browser:\n\n"
+            f"{reset_link}\n\n"
+            f"This link will expire in 1 hour.\n\n"
+            f"If you did not request a password reset, you can safely ignore this email. "
+            f"Your password will not change unless you click the link above.\n\n"
+            f"-- \n"
+            f"Sree Lakshmi Ladies Hostel\n"
+            f"This is an automated message, please do not reply.\n"
         )
-        
-        logger.info(f'Password reset email sent to {email}')
-        return Response({
-            'message': 'Password reset email sent successfully'
-        }, status=status.HTTP_200_OK)
-        
+
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', settings.EMAIL_HOST_USER)
+        send_mail(subject, message, from_email, [user.email], fail_silently=False)
+
+        logger.info(f'Password reset email sent to {user.email} for username "{username}"')
+        return Response({'message': 'Password reset email sent successfully'}, status=status.HTTP_200_OK)
+
     except Exception as e:
-        logger.error(f'Password reset request error: {str(e)}')
-        return Response({
-            'error': 'Failed to send reset email'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.error(f'Password reset SMTP error for username "{username}": {e}')
+        return Response(
+            {'error': 'Failed to send the reset email due to a mail server issue. Please contact the administrator.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 
 @api_view(['POST'])
