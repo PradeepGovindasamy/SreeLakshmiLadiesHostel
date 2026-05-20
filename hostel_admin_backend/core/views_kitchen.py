@@ -27,7 +27,7 @@ from core.models import (
     FoodMenuItem,
     MealCountSnapshot,
     MenuIngredient,
-    ResidentMealAvailability,
+    TenantMealAvailability,
     Tenant,
 )
 
@@ -99,16 +99,16 @@ class FoodMenuWithItemsSerializer(serializers.ModelSerializer):
         return None
 
 
-class ResidentAvailabilitySerializer(serializers.ModelSerializer):
-    resident_name = serializers.CharField(source='resident.name', read_only=True)
+class TenantAvailabilitySerializer(serializers.ModelSerializer):
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
     meal_type_display = serializers.CharField(source='get_meal_type_display', read_only=True)
     cutoff_display = serializers.SerializerMethodField()
     can_modify = serializers.SerializerMethodField()
 
     class Meta:
-        model = ResidentMealAvailability
+        model = TenantMealAvailability
         fields = [
-            'id', 'resident', 'resident_name',
+            'id', 'tenant', 'tenant_name',
             'date', 'meal_type', 'meal_type_display',
             'is_available', 'updated_at',
             'cutoff_display', 'can_modify',
@@ -194,30 +194,29 @@ class MenuIngredientViewSet(viewsets.ModelViewSet):
         instance.delete()
 
 
-class ResidentAvailabilityViewSet(viewsets.ModelViewSet):
+class TenantAvailabilityViewSet(viewsets.ModelViewSet):
     """
-    Residents mark their own meal availability.
+    Tenants mark their own meal availability.
     Admins/wardens can view all and override.
     """
-    serializer_class = ResidentAvailabilitySerializer
+    serializer_class = TenantAvailabilitySerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         role = _get_role(self.request)
-        qs = ResidentMealAvailability.objects.select_related('resident')
+        qs = TenantMealAvailability.objects.select_related('tenant')
 
         if role == 'tenant':
             try:
                 tenant = Tenant.objects.get(user=self.request.user)
-                qs = qs.filter(resident=tenant)
+                qs = qs.filter(tenant=tenant)
             except Tenant.DoesNotExist:
                 return qs.none()
-        
-        # Optional date filter
+
         date_param = self.request.query_params.get('date')
         if date_param:
             qs = qs.filter(date=date_param)
-        
+
         meal_type_param = self.request.query_params.get('meal_type')
         if meal_type_param:
             qs = qs.filter(meal_type=meal_type_param)
@@ -228,14 +227,14 @@ class ResidentAvailabilityViewSet(viewsets.ModelViewSet):
         role = _get_role(self.request)
         target_date = serializer.validated_data['date']
         meal_type = serializer.validated_data['meal_type']
-        resident = serializer.validated_data['resident']
+        target_tenant = serializer.validated_data['tenant']
 
         if role == 'tenant':
             try:
                 my_tenant = Tenant.objects.get(user=self.request.user)
             except Tenant.DoesNotExist:
                 raise permissions.PermissionDenied("No tenant profile linked to your account.")
-            if resident != my_tenant:
+            if target_tenant != my_tenant:
                 raise permissions.PermissionDenied("You can only update your own availability.")
 
         if not is_availability_change_allowed(target_date, meal_type):
@@ -256,7 +255,7 @@ class ResidentAvailabilityViewSet(viewsets.ModelViewSet):
                 my_tenant = Tenant.objects.get(user=self.request.user)
             except Tenant.DoesNotExist:
                 raise permissions.PermissionDenied("No tenant profile linked to your account.")
-            if instance.resident != my_tenant:
+            if instance.tenant != my_tenant:
                 raise permissions.PermissionDenied("You can only update your own availability.")
 
         if not is_availability_change_allowed(instance.date, instance.meal_type):
@@ -269,22 +268,19 @@ class ResidentAvailabilityViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='my')
     def my_availability(self, request):
-        """Shortcut: current tenant's availability for next 7 days."""
+        """Current tenant's availability for today + next 7 days."""
         try:
             tenant = Tenant.objects.get(user=request.user)
         except Tenant.DoesNotExist:
             return Response({'error': 'No tenant profile found.'}, status=404)
 
         today = date.today()
-        records = ResidentMealAvailability.objects.filter(
-            resident=tenant,
+        records = TenantMealAvailability.objects.filter(
+            tenant=tenant,
             date__gte=today,
             date__lte=today + timedelta(days=7),
         )
-        serializer = self.get_serializer(records, many=True)
 
-        # Build a structured response: for each date/meal combination
-        # indicate availability (default True if no record)
         meals = ['breakfast', 'lunch', 'snacks', 'dinner']
         result = []
         for day_offset in range(8):
@@ -310,7 +306,7 @@ class ResidentAvailabilityViewSet(viewsets.ModelViewSet):
         """
         role = _get_role(request)
         try:
-            tenant = Tenant.objects.get(user=request.user) if role == 'tenant' else None
+            my_tenant = Tenant.objects.get(user=request.user) if role == 'tenant' else None
         except Tenant.DoesNotExist:
             return Response({'error': 'No tenant profile found.'}, status=404)
 
@@ -322,10 +318,10 @@ class ResidentAvailabilityViewSet(viewsets.ModelViewSet):
             target_date = item.get('date')
             meal_type = item.get('meal_type')
             is_available = item.get('is_available', True)
-            resident_id = item.get('resident') or (tenant.id if tenant else None)
+            tenant_id = item.get('tenant') or (my_tenant.id if my_tenant else None)
 
-            if not all([target_date, meal_type, resident_id]):
-                errors.append({'item': item, 'error': 'Missing date, meal_type, or resident'})
+            if not all([target_date, meal_type, tenant_id]):
+                errors.append({'item': item, 'error': 'Missing date, meal_type, or tenant'})
                 continue
 
             from datetime import datetime
@@ -336,16 +332,13 @@ class ResidentAvailabilityViewSet(viewsets.ModelViewSet):
                 continue
 
             if not is_availability_change_allowed(d, meal_type):
-                errors.append({
-                    'item': item,
-                    'error': f"Cutoff passed: {get_cutoff_display(d, meal_type)}"
-                })
+                errors.append({'item': item, 'error': f"Cutoff passed: {get_cutoff_display(d, meal_type)}"})
                 continue
 
             try:
-                resident = Tenant.objects.get(id=resident_id)
-                obj, _ = ResidentMealAvailability.objects.update_or_create(
-                    resident=resident, date=d, meal_type=meal_type,
+                tenant = Tenant.objects.get(id=tenant_id)
+                obj, _ = TenantMealAvailability.objects.update_or_create(
+                    tenant=tenant, date=d, meal_type=meal_type,
                     defaults={'is_available': is_available, 'updated_by': request.user},
                 )
                 saved.append({'id': obj.id, 'date': str(d), 'meal_type': meal_type, 'is_available': is_available})

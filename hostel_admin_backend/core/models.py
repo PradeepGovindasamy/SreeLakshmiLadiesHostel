@@ -571,19 +571,19 @@ class MenuIngredient(models.Model):
         ordering = ['menu_item', 'grocery_item__name']
 
 
-class ResidentMealAvailability(models.Model):
+class TenantMealAvailability(models.Model):
     """
-    Residents mark themselves UNAVAILABLE for a specific meal.
-    If no record exists → resident is AVAILABLE (default).
+    Tenants mark themselves UNAVAILABLE for a specific meal.
+    If no record exists → tenant is AVAILABLE (default).
     """
-    resident = models.ForeignKey(
+    tenant = models.ForeignKey(
         Tenant, on_delete=models.CASCADE, related_name='meal_availability'
     )
     date = models.DateField(db_index=True)
     meal_type = models.CharField(max_length=20, choices=MEAL_TYPE_CHOICES)
     is_available = models.BooleanField(
         default=True,
-        help_text='False = resident opted out of this meal'
+        help_text='False = tenant opted out of this meal'
     )
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
@@ -593,14 +593,14 @@ class ResidentMealAvailability(models.Model):
 
     def __str__(self):
         status = 'available' if self.is_available else 'unavailable'
-        return f"{self.resident.name} {self.date} {self.meal_type}: {status}"
+        return f"{self.tenant.name} {self.date} {self.meal_type}: {status}"
 
     class Meta:
-        unique_together = ['resident', 'date', 'meal_type']
-        ordering = ['date', 'meal_type', 'resident']
+        unique_together = ['tenant', 'date', 'meal_type']
+        ordering = ['date', 'meal_type', 'tenant']
         indexes = [
             models.Index(fields=['date', 'meal_type']),
-            models.Index(fields=['resident', 'date']),
+            models.Index(fields=['tenant', 'date']),
         ]
 
 

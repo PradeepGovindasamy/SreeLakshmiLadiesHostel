@@ -57,7 +57,7 @@ def derive_meal_count(date, meal_type):
         unavailable_count: those who opted out
         meal_count: total_residents − unavailable_count
     """
-    from core.models import Tenant, ResidentMealAvailability
+    from core.models import Tenant, TenantMealAvailability
 
     active_tenants = Tenant.objects.filter(
         joining_date__isnull=False,
@@ -65,11 +65,11 @@ def derive_meal_count(date, meal_type):
     )
     total_residents = active_tenants.count()
 
-    unavailable_count = ResidentMealAvailability.objects.filter(
+    unavailable_count = TenantMealAvailability.objects.filter(
         date=date,
         meal_type=meal_type,
         is_available=False,
-        resident__in=active_tenants,
+        tenant__in=active_tenants,
     ).count()
 
     meal_count = max(0, total_residents - unavailable_count)

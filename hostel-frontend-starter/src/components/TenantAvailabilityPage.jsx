@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Box, Typography, Paper, Grid, Card, CardContent, CardHeader,
-  Switch, FormControlLabel, Chip, Divider, Alert, CircularProgress,
+  Box, Typography, Grid, Card, CardContent, CardHeader,
+  Switch, Chip, Divider, Alert, CircularProgress,
   Tooltip, IconButton, Button, Snackbar,
 } from '@mui/material';
 import {
@@ -24,8 +24,6 @@ const MEAL_CONFIG = {
   dinner:    { label: 'Dinner',    icon: <DinnerIcon />,    color: '#2196F3' },
 };
 
-const DAY_NAMES = ['Today', 'Tomorrow', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'];
-
 function formatDate(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
   return d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' });
@@ -39,12 +37,12 @@ function getDayLabel(index) {
   return d.toLocaleDateString('en-IN', { weekday: 'short' });
 }
 
-export default function ResidentAvailabilityPage() {
-  const [days, setDays] = useState([]);
+export default function TenantAvailabilityPage() {
+  const [days, setDays]   = useState([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' });
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState('');
+  const [snack, setSnack]     = useState({ open: false, message: '', severity: 'success' });
 
   const showSnack = (message, severity = 'success') =>
     setSnack({ open: true, message, severity });
@@ -65,7 +63,7 @@ export default function ResidentAvailabilityPage() {
   useEffect(() => { fetchAvailability(); }, [fetchAvailability]);
 
   const handleToggle = async (dayIndex, mealType) => {
-    const day = days[dayIndex];
+    const day  = days[dayIndex];
     const meal = day.meals[mealType];
 
     if (!meal.can_modify) {
@@ -95,9 +93,9 @@ export default function ResidentAvailabilityPage() {
       ]);
       showSnack(
         newValue
-          ? `You are now marked available for ${MEAL_CONFIG[mealType].label}`
-          : `You have opted out of ${MEAL_CONFIG[mealType].label}`,
-        newValue ? 'success' : 'info'
+          ? `Marked available for ${MEAL_CONFIG[mealType].label}`
+          : `Opted out of ${MEAL_CONFIG[mealType].label}`,
+        newValue ? 'success' : 'info',
       );
     } catch (err) {
       // Revert on failure
@@ -112,7 +110,10 @@ export default function ResidentAvailabilityPage() {
         };
         return updated;
       });
-      showSnack(err.response?.data?.error || err.response?.data?.[0]?.error || 'Failed to update.', 'error');
+      showSnack(
+        err.response?.data?.error || err.response?.data?.[0]?.error || 'Failed to update.',
+        'error',
+      );
     } finally {
       setSaving(false);
     }
@@ -131,7 +132,7 @@ export default function ResidentAvailabilityPage() {
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
         <Box display="flex" alignItems="center" gap={1}>
           <RestaurantIcon color="primary" />
-          <Typography variant="h5" fontWeight={600}>Meal Availability</Typography>
+          <Typography variant="h5" fontWeight={600}>My Meal Availability</Typography>
         </Box>
         <Tooltip title="Refresh">
           <IconButton onClick={fetchAvailability} disabled={loading}>
@@ -143,9 +144,10 @@ export default function ResidentAvailabilityPage() {
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       <Alert severity="info" sx={{ mb: 3 }}>
-        <strong>Cutoff rules:</strong> Opt out of Breakfast/Lunch by <strong>8:00 PM the previous evening</strong>.
-        Opt out of Snacks/Dinner by <strong>2:00 PM the same day</strong>.
-        Default is <strong>Available</strong> if nothing is marked.
+        <strong>Cutoff rules:</strong> Opt out of Breakfast/Lunch by{' '}
+        <strong>8:00 PM the previous evening</strong>. Opt out of Snacks/Dinner by{' '}
+        <strong>2:00 PM the same day</strong>. Default is <strong>Available</strong> if
+        nothing is marked.
       </Alert>
 
       <Grid container spacing={2}>
@@ -188,23 +190,11 @@ export default function ResidentAvailabilityPage() {
                         </Box>
                         <Box display="flex" alignItems="center" gap={1}>
                           {meal.is_available ? (
-                            <Chip
-                              size="small"
-                              icon={<CheckIcon />}
-                              label="Eating"
-                              color="success"
-                              variant="outlined"
-                              sx={{ fontSize: 11 }}
-                            />
+                            <Chip size="small" icon={<CheckIcon />} label="Eating"
+                              color="success" variant="outlined" sx={{ fontSize: 11 }} />
                           ) : (
-                            <Chip
-                              size="small"
-                              icon={<CancelIcon />}
-                              label="Skipping"
-                              color="default"
-                              variant="outlined"
-                              sx={{ fontSize: 11 }}
-                            />
+                            <Chip size="small" icon={<CancelIcon />} label="Skipping"
+                              color="default" variant="outlined" sx={{ fontSize: 11 }} />
                           )}
                           <Switch
                             size="small"

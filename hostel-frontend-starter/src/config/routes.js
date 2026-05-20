@@ -18,7 +18,7 @@ import Groceries from '../components/Groceries';
 import Machines from '../components/Machines';
 import Workers from '../components/Workers';
 import FoodMenuPage from '../components/FoodMenuPage';
-import ResidentAvailabilityPage from '../components/ResidentAvailabilityPage';
+import TenantAvailabilityPage from '../components/TenantAvailabilityPage';
 import MealCountPage from '../components/MealCountPage';
 
 // Define all routes with their access controls
@@ -182,7 +182,7 @@ export const routeConfig = [
   // Tenant routes
   {
     path: '/my-availability',
-    component: ResidentAvailabilityPage,
+    component: TenantAvailabilityPage,
     requiredRoles: ['tenant'],
     title: 'My Meal Availability',
     showInNav: true,
