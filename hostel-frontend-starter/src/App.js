@@ -3,10 +3,10 @@ import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useNavigate,
 import {
   AppBar, Toolbar, Typography, Box, Menu, MenuItem, Avatar,
   Drawer, List, ListItem, Divider,
-  IconButton, Tooltip, Chip, CircularProgress
+  IconButton, Tooltip, Chip, CircularProgress, useMediaQuery, useTheme,
 } from '@mui/material';
 import {
-  Dashboard as DashboardIcon, ExitToApp, Person,
+  Dashboard as DashboardIcon, ExitToApp, Person, Menu as MenuIcon,
   Business, MeetingRoom, People, SensorDoor, Inventory2,
   PrecisionManufacturing, Engineering, ManageAccounts, Home
 } from '@mui/icons-material';
@@ -38,10 +38,13 @@ const ROLE_COLORS = {
 };
 
 function AppWrapper() {
+  const theme = useTheme();
+  const isTabletDown = useMediaQuery(theme.breakpoints.down('lg'));
   const { user, isAuthenticated, logout, getUserRole, getUserName, loading } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
   const [anchorEl, setAnchorEl] = React.useState(null);
+  const [mobileOpen, setMobileOpen] = React.useState(false);
 
   const handleLogout = () => { logout(); navigate('/'); };
   const userRole = getUserRole();
@@ -71,160 +74,170 @@ function AppWrapper() {
   const roleColor = ROLE_COLORS[userRole] || '#1d4ed8';
   const initials = getUserName()?.slice(0, 2).toUpperCase() || 'U';
 
+  React.useEffect(() => { setMobileOpen(false); }, [location.pathname]);
+
+  const drawerContent = (
+    <>
+      {/* Brand */}
+      <Box sx={{ px: 3, py: 2.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{
+            width: 34, height: 34, borderRadius: 2,
+            bgcolor: 'rgba(99, 102, 241, 0.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Home sx={{ fontSize: 17, color: '#a5b4fc' }} />
+          </Box>
+          <Box>
+            <Typography variant="body2" fontWeight={600} color="#f8fafc" lineHeight={1.2}>
+              Sree Lakshmi
+            </Typography>
+            <Typography variant="caption" sx={{ color: '#64748b' }}>
+              Hostel Manager
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* Role badge */}
+      <Box sx={{ px: 3, py: 1.25, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        {loading ? (
+          <Box sx={{ height: 22, width: 64, borderRadius: 1, backgroundColor: '#1e293b' }} />
+        ) : (
+          <Chip
+            label={userRole?.toUpperCase()}
+            size="small"
+            sx={{
+              backgroundColor: `${roleColor}18`,
+              color: roleColor,
+              fontWeight: 600,
+              fontSize: 10,
+              letterSpacing: 0.8,
+              border: 'none',
+            }}
+          />
+        )}
+      </Box>
+
+      {/* Nav items */}
+      <Box sx={{ flex: 1, overflowY: 'auto', py: 1.5 }}>
+        {loading ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <Box
+              key={i}
+              sx={{
+                mx: 1.5, mb: 0.5, height: 40, borderRadius: 2,
+                backgroundColor: '#1e293b',
+                animation: 'pulse 1.5s ease-in-out infinite',
+                opacity: 0.6 - i * 0.07,
+                '@keyframes pulse': {
+                  '0%, 100%': { opacity: 0.6 - i * 0.07 },
+                  '50%': { opacity: 0.3 - i * 0.03 },
+                },
+              }}
+            />
+          ))
+        ) : (
+          <List dense disablePadding>
+            {navigationItems.map((item) => {
+              const label = item.navLabel || item.title;
+              const isActive = location.pathname === item.path;
+              return (
+                <ListItem
+                  key={item.path}
+                  component={NavLink}
+                  to={item.path}
+                  disablePadding
+                  onClick={() => isTabletDown && setMobileOpen(false)}
+                  sx={{
+                    display: 'block',
+                    mx: 1.5,
+                    mb: 0.5,
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    backgroundColor: isActive ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                    '&:hover': { backgroundColor: isActive ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255,255,255,0.04)' },
+                    textDecoration: 'none',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.15 }}>
+                    <Box sx={{ color: isActive ? '#a5b4fc' : '#64748b', display: 'flex' }}>
+                      {NAV_ICONS[label] || <DashboardIcon fontSize="small" />}
+                    </Box>
+                    <Typography
+                      variant="body2"
+                      fontWeight={isActive ? 600 : 400}
+                      color={isActive ? '#f1f5f9' : '#94a3b8'}
+                    >
+                      {label}
+                    </Typography>
+                  </Box>
+                </ListItem>
+              );
+            })}
+          </List>
+        )}
+      </Box>
+
+      {/* User footer */}
+      <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)', px: 2, py: 2 }}>
+        {loading ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: '#1e293b', flexShrink: 0 }} />
+            <Box sx={{ flex: 1 }}>
+              <Box sx={{ height: 12, borderRadius: 1, backgroundColor: '#1e293b', mb: 0.5 }} />
+              <Box sx={{ height: 10, borderRadius: 1, backgroundColor: '#1e293b', width: '60%' }} />
+            </Box>
+          </Box>
+        ) : (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Avatar sx={{ width: 32, height: 32, backgroundColor: roleColor, fontSize: 13, fontWeight: 700 }}>
+              {initials}
+            </Avatar>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography variant="body2" fontWeight={600} color="#f1f5f9" noWrap>
+                {getUserName()}
+              </Typography>
+              <Typography variant="caption" color="#64748b" noWrap>
+                {userRole}
+              </Typography>
+            </Box>
+            <Tooltip title="Logout">
+              <IconButton size="small" onClick={handleLogout} sx={{ color: '#64748b', '&:hover': { color: '#ef4444' } }}>
+                <ExitToApp fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        )}
+      </Box>
+    </>
+  );
+
+  const drawerPaperSx = {
+    width: drawerWidth,
+    boxSizing: 'border-box',
+    backgroundColor: '#0f172a',
+    color: '#e2e8f0',
+    borderRight: 'none',
+  };
+
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f8fafc' }}>
       {showLayout && (
         <>
           {/* ── Sidebar ── */}
           <Drawer
-            variant="permanent"
+            variant={isTabletDown ? 'temporary' : 'permanent'}
+            open={isTabletDown ? mobileOpen : true}
+            onClose={() => setMobileOpen(false)}
+            ModalProps={{ keepMounted: true }}
             sx={{
               width: drawerWidth,
               flexShrink: 0,
-              '& .MuiDrawer-paper': {
-                width: drawerWidth,
-                boxSizing: 'border-box',
-                backgroundColor: '#0f172a',
-                color: '#e2e8f0',
-                borderRight: 'none',
-              },
+              '& .MuiDrawer-paper': drawerPaperSx,
             }}
           >
-            {/* Brand */}
-            <Box sx={{ px: 3, py: 3, borderBottom: '1px solid #1e293b' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <Box sx={{
-                  width: 36, height: 36, borderRadius: 2,
-                  background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}>
-                  <Home sx={{ fontSize: 18, color: '#fff' }} />
-                </Box>
-                <Box>
-                  <Typography variant="body2" fontWeight={700} color="#f1f5f9" lineHeight={1.2}>
-                    Sree Lakshmi
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: '#64748b' }}>
-                    Hostel Manager
-                  </Typography>
-                </Box>
-              </Box>
-            </Box>
-
-            {/* Role badge */}
-            <Box sx={{ px: 3, py: 1.5, borderBottom: '1px solid #1e293b' }}>
-              {loading ? (
-                <Box sx={{ height: 22, width: 64, borderRadius: 1, backgroundColor: '#1e293b' }} />
-              ) : (
-                <Chip
-                  label={userRole?.toUpperCase()}
-                  size="small"
-                  sx={{
-                    backgroundColor: `${roleColor}22`,
-                    color: roleColor,
-                    fontWeight: 700,
-                    fontSize: 10,
-                    letterSpacing: 1,
-                    border: `1px solid ${roleColor}44`,
-                  }}
-                />
-              )}
-            </Box>
-
-            {/* Nav items */}
-            <Box sx={{ flex: 1, overflowY: 'auto', py: 1.5 }}>
-              {loading ? (
-                // Skeleton placeholders while role/profile is being fetched
-                Array.from({ length: 6 }).map((_, i) => (
-                  <Box
-                    key={i}
-                    sx={{
-                      mx: 1.5, mb: 0.5, height: 40, borderRadius: 2,
-                      backgroundColor: '#1e293b',
-                      animation: 'pulse 1.5s ease-in-out infinite',
-                      opacity: 0.6 - i * 0.07,
-                      '@keyframes pulse': {
-                        '0%, 100%': { opacity: 0.6 - i * 0.07 },
-                        '50%': { opacity: 0.3 - i * 0.03 },
-                      },
-                    }}
-                  />
-                ))
-              ) : (
-                <List dense disablePadding>
-                  {navigationItems.map((item) => {
-                    const label = item.navLabel || item.title;
-                    const isActive = location.pathname === item.path;
-                    return (
-                      <ListItem
-                        key={item.path}
-                        component={NavLink}
-                        to={item.path}
-                        disablePadding
-                        sx={{
-                          display: 'block',
-                          mx: 1.5,
-                          mb: 0.5,
-                          borderRadius: 2,
-                          overflow: 'hidden',
-                          backgroundColor: isActive ? '#1e40af' : 'transparent',
-                          '&:hover': { backgroundColor: isActive ? '#1e40af' : '#1e293b' },
-                          textDecoration: 'none',
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25 }}>
-                          <Box sx={{ color: isActive ? '#93c5fd' : '#64748b', display: 'flex' }}>
-                            {NAV_ICONS[label] || <DashboardIcon fontSize="small" />}
-                          </Box>
-                          <Typography
-                            variant="body2"
-                            fontWeight={isActive ? 600 : 400}
-                            color={isActive ? '#f1f5f9' : '#94a3b8'}
-                          >
-                            {label}
-                          </Typography>
-                          {isActive && (
-                            <Box sx={{ ml: 'auto', width: 6, height: 6, borderRadius: '50%', backgroundColor: '#3b82f6' }} />
-                          )}
-                        </Box>
-                      </ListItem>
-                    );
-                  })}
-                </List>
-              )}
-            </Box>
-
-            {/* User footer */}
-            <Box sx={{ borderTop: '1px solid #1e293b', px: 2, py: 2 }}>
-              {loading ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                  <Box sx={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: '#1e293b', flexShrink: 0 }} />
-                  <Box sx={{ flex: 1 }}>
-                    <Box sx={{ height: 12, borderRadius: 1, backgroundColor: '#1e293b', mb: 0.5 }} />
-                    <Box sx={{ height: 10, borderRadius: 1, backgroundColor: '#1e293b', width: '60%' }} />
-                  </Box>
-                </Box>
-              ) : (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                  <Avatar sx={{ width: 32, height: 32, backgroundColor: roleColor, fontSize: 13, fontWeight: 700 }}>
-                    {initials}
-                  </Avatar>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body2" fontWeight={600} color="#f1f5f9" noWrap>
-                      {getUserName()}
-                    </Typography>
-                    <Typography variant="caption" color="#64748b" noWrap>
-                      {userRole}
-                    </Typography>
-                  </Box>
-                  <Tooltip title="Logout">
-                    <IconButton size="small" onClick={handleLogout} sx={{ color: '#64748b', '&:hover': { color: '#ef4444' } }}>
-                      <ExitToApp fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              )}
-            </Box>
+            {drawerContent}
           </Drawer>
 
           {/* ── Top AppBar ── */}
@@ -232,16 +245,21 @@ function AppWrapper() {
             position="fixed"
             elevation={0}
             sx={{
-              width: `calc(100% - ${drawerWidth}px)`,
-              ml: `${drawerWidth}px`,
-              backgroundColor: '#ffffff',
-              borderBottom: '1px solid #e2e8f0',
+              width: isTabletDown ? '100%' : `calc(100% - ${drawerWidth}px)`,
+              ml: isTabletDown ? 0 : `${drawerWidth}px`,
+              backgroundColor: 'rgba(255,255,255,0.92)',
+              backdropFilter: 'blur(8px)',
+              borderBottom: '1px solid rgba(15, 23, 42, 0.06)',
               color: '#0f172a',
             }}
           >
-            <Toolbar sx={{ minHeight: '60px !important' }}>
-              {/* Page title derived from route */}
-              <Typography variant="subtitle1" fontWeight={600} color="grey.800" sx={{ flexGrow: 1 }}>
+            <Toolbar sx={{ minHeight: { xs: '52px !important', sm: '56px !important' }, px: { xs: 1.5, sm: 2 } }}>
+              {isTabletDown && (
+                <IconButton edge="start" onClick={() => setMobileOpen(true)} sx={{ mr: 1, color: '#64748b' }}>
+                  <MenuIcon />
+                </IconButton>
+              )}
+              <Typography variant="subtitle1" fontWeight={600} color="grey.800" sx={{ flexGrow: 1, fontSize: { xs: '0.95rem', sm: '1rem' } }}>
                 {navigationItems.find(n => n.path === location.pathname)?.navLabel ||
                  navigationItems.find(n => n.path === location.pathname)?.title ||
                  'Dashboard'}
@@ -280,7 +298,7 @@ function AppWrapper() {
         sx={{
           flexGrow: 1,
           minHeight: '100vh',
-          pt: showLayout ? '60px' : 0,
+          pt: showLayout ? { xs: '52px', sm: '56px' } : 0,
           backgroundColor: '#f8fafc',
         }}
       >

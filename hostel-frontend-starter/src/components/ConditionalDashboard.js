@@ -15,9 +15,10 @@ const ConditionalDashboard = () => {
         display: 'flex', flexDirection: 'column',
         justifyContent: 'center', alignItems: 'center',
         minHeight: '60vh', gap: 2,
+        bgcolor: '#f8fafc',
       }}>
-        <CircularProgress size={40} thickness={4} />
-        <Typography variant="body2" color="text.secondary">Loading your dashboard…</Typography>
+        <CircularProgress size={32} thickness={4} sx={{ color: 'rgba(15,23,42,0.15)' }} />
+        <Typography variant="body2" sx={{ color: '#64748b' }}>Loading your dashboard…</Typography>
       </Box>
     );
   }
