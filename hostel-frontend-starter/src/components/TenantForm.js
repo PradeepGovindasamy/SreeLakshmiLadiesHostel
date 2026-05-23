@@ -26,6 +26,7 @@ import {
 } from '@mui/material';
 import { enhancedAPI } from '../api';
 import { useUser } from '../contexts/UserContext';
+import { formatRoomType } from '../utils/roomFormatters';
 
 const steps = ['Personal Information', 'Contact & Address', 'Emergency Contacts', 'Room Assignment', 'Documents & Terms', 'Review & Save'];
 
@@ -708,7 +709,7 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
                 >
                   {availableRooms.map((room) => (
                     <MenuItem key={room.id} value={room.id}>
-                      {room.room_name} ({room.sharing_type_display || `${room.sharing_type}-Sharing`} - {room.current_occupancy || 0}/{room.sharing_type})
+                      {room.room_name} ({formatRoomType(room)} - {room.current_occupancy || 0}/{room.sharing_type})
                     </MenuItem>
                   ))}
                 </Select>

@@ -20,6 +20,7 @@ import Workers from '../components/Workers';
 import FoodMenuPage from '../components/FoodMenuPage';
 import TenantAvailabilityPage from '../components/TenantAvailabilityPage';
 import MealCountPage from '../components/MealCountPage';
+import { RESIDENT } from './labels';
 
 // Define all routes with their access controls
 export const routeConfig = [
@@ -102,9 +103,9 @@ export const routeConfig = [
     path: '/tenants',
     component: TenantsPage,
     requiredRoles: ['owner', 'admin', 'warden'],
-    title: 'Tenants',
+    title: RESIDENT.plural,
     showInNav: true,
-    navLabel: 'Tenants'
+    navLabel: RESIDENT.plural
   },
   {
     path: '/room-status',
@@ -119,7 +120,7 @@ export const routeConfig = [
   {
     path: '/groceries',
     component: Groceries,
-    requiredRoles: ['owner', 'admin', 'warden'],
+    requiredRoles: ['owner', 'admin'],
     title: 'Groceries & Inventory',
     showInNav: true,
     navLabel: 'Groceries'
@@ -127,7 +128,7 @@ export const routeConfig = [
   {
     path: '/machines',
     component: Machines,
-    requiredRoles: ['owner', 'admin', 'warden'],
+    requiredRoles: ['owner', 'admin'],
     title: 'Machines & Equipment',
     showInNav: true,
     navLabel: 'Machines'
@@ -135,45 +136,37 @@ export const routeConfig = [
   {
     path: '/workers',
     component: Workers,
-    requiredRoles: ['owner', 'admin', 'warden'],
+    requiredRoles: ['owner', 'admin'],
     title: 'Workers Management',
     showInNav: true,
     navLabel: 'Workers'
   },
 
-  // Warden specific routes
-  {
-    path: '/my-property',
-    component: Branches, // Shows role-filtered data
-    requiredRoles: ['warden'],
-    title: 'My Property',
-    showInNav: true,
-    navLabel: 'My Property'
-  },
+  // Owner/Admin service requests (not warden nav)
   {
     path: '/tenant-requests',
     component: () => <div>Service Requests (To be implemented)</div>,
-    requiredRoles: ['warden', 'owner', 'admin'],
+    requiredRoles: ['owner', 'admin'],
     title: 'Service Requests',
     showInNav: true,
     navLabel: 'Service Requests'
   },
 
-  // Food Menu — visible to all authenticated roles
+  // Food Menu — residents + owner/admin
   {
     path: '/food-menu',
     component: FoodMenuPage,
-    requiredRoles: ['owner', 'admin', 'warden', 'tenant'],
+    requiredRoles: ['owner', 'admin', 'tenant'],
     title: 'Food Menu',
     showInNav: true,
     navLabel: 'Food Menu'
   },
 
-  // Meal Count — warden/admin/owner can see counts and trigger consumption
+  // Meal Count — owner/admin only
   {
     path: '/meal-count',
     component: MealCountPage,
-    requiredRoles: ['owner', 'admin', 'warden'],
+    requiredRoles: ['owner', 'admin'],
     title: 'Meal Count',
     showInNav: true,
     navLabel: 'Meal Count'

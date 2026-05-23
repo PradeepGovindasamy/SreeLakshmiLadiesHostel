@@ -10,6 +10,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { enhancedAPI } from '../../api';
+import { RESIDENT } from '../../config/labels';
 import { useUser } from '../../contexts/UserContext';
 import {
   PageShell, PageHeader, MetricCard, MetricGrid, SectionPanel,
@@ -188,7 +189,7 @@ const WardenDashboard = () => {
           onClick={() => navigate('/room-status')}
         />
         <MetricCard
-          label="Active tenants"
+          label={`Active ${RESIDENT.plural.toLowerCase()}`}
           value={statistics.totalTenants}
           icon={<People sx={{ fontSize: 18 }} />}
           accent="#8b5cf6"
@@ -276,7 +277,7 @@ const WardenDashboard = () => {
 
         {/* Current tenants */}
         <SectionPanel
-          title="Current tenants"
+          title={`Current ${RESIDENT.plural.toLowerCase()}`}
           actionLabel="View all"
           onAction={() => navigate('/tenants')}
         >
@@ -284,7 +285,7 @@ const WardenDashboard = () => {
             <Table size="small" stickyHeader sx={{ minWidth: 640 }}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={tableHeadSx}>Tenant</TableCell>
+                  <TableCell sx={tableHeadSx}>{RESIDENT.singular}</TableCell>
                   <TableCell sx={tableHeadSx}>Room</TableCell>
                   <TableCell sx={{ ...tableHeadSx, display: { xs: 'none', md: 'table-cell' } }}>Contact</TableCell>
                   <TableCell sx={tableHeadSx} align="right">Rent</TableCell>
@@ -311,7 +312,7 @@ const WardenDashboard = () => {
                       <Typography variant="body2" sx={{ fontWeight: 500, color: dash.text }}>{tenant.name}</Typography>
                     </TableCell>
                     <TableCell sx={{ borderColor: dash.borderLight, fontSize: 13, color: dash.textSecondary }}>
-                      {tenant.room_name || 'N/A'}
+                      {tenant.room_detail?.room_name || tenant.room_display?.split(' - ')?.[0] || 'N/A'}
                     </TableCell>
                     <TableCell sx={{ borderColor: dash.borderLight, display: { xs: 'none', md: 'table-cell' } }}>
                       <Typography variant="caption" sx={{ color: dash.textSecondary, display: 'flex', alignItems: 'center', gap: 0.5 }}>

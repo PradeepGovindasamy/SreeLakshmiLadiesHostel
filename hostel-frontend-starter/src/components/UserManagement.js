@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { userAPI, enhancedAPI } from '../api';
 import { useUser } from '../contexts/UserContext';
+import { RESIDENT } from '../config/labels';
 import {
   Typography,
   Button,
@@ -531,7 +532,7 @@ function UserManagement() {
                   <MenuItem value="admin">Administrator</MenuItem>
                   <MenuItem value="owner">Property Owner</MenuItem>
                   <MenuItem value="warden">Warden</MenuItem>
-                  <MenuItem value="tenant">Tenant</MenuItem>
+                  <MenuItem value="tenant">{RESIDENT.role}</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -724,7 +725,7 @@ function UserManagement() {
                 <Box>
                   <Typography variant="h6">{tenantUsers}</Typography>
                   <Typography variant="body2" color="textSecondary">
-                    Tenants
+                    {RESIDENT.plural}
                   </Typography>
                 </Box>
               </Box>
@@ -753,7 +754,7 @@ function UserManagement() {
                 { label: 'Admin', value: 'admin' },
                 { label: 'Owner', value: 'owner' },
                 { label: 'Warden', value: 'warden' },
-                { label: 'Tenant', value: 'tenant' },
+                { label: RESIDENT.role, value: 'tenant' },
               ].map(({ label, value }) => (
                 <Chip
                   key={value}
@@ -1009,7 +1010,7 @@ function UserManagement() {
         return tenantUsers.length > 0 && (
           <>
             <Typography variant="h6" sx={{ mb: 2, color: '#2e7d32', fontWeight: 'bold' }}>
-              Tenants ({tenantUsers.length})
+              {RESIDENT.plural} ({tenantUsers.length})
             </Typography>
             <Paper elevation={3} sx={{ mb: 3 }}>
               <TableContainer>

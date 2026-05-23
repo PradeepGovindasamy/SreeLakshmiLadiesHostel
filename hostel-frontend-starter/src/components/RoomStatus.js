@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { enhancedAPI } from '../api';
+import { sortRoomsByBuildingHierarchy, groupRoomsByFloor } from '../utils/roomSort';
+import { formatRoomType } from '../utils/roomFormatters';
 import {
   Box, Typography, Grid, CircularProgress, Stack, Alert, IconButton,
   Collapse, alpha,
@@ -74,14 +76,8 @@ function RoomCard({ room }) {
           </Typography>
           <Typography variant="caption" sx={{ color: dash.textMuted }}>·</Typography>
           <Typography variant="caption" sx={{ color: dash.textSecondary }}>
-            {cap}-sharing
+            {formatRoomType(room)}
           </Typography>
-          {room.ac_room && (
-            <>
-              <Typography variant="caption" sx={{ color: dash.textMuted }}>·</Typography>
-              <Typography variant="caption" sx={{ color: dash.textSecondary }}>AC</Typography>
-            </>
-          )}
           {room.attached_bath && (
             <>
               <Typography variant="caption" sx={{ color: dash.textMuted }}>·</Typography>
@@ -234,13 +230,30 @@ function BranchSection({ branchName, rooms }) {
       </SoftCard>
 
       <Collapse in={open}>
-        <Grid container spacing={{ xs: 1.5, sm: 2 }}>
-          {rooms.map(room => (
-            <Grid item xs={12} sm={6} md={4} lg={3} key={room.id}>
-              <RoomCard room={room} />
+        {groupRoomsByFloor(rooms).map(section => (
+          <Box key={section.group} sx={{ mb: 2.5 }}>
+            <Typography
+              variant="overline"
+              sx={{
+                display: 'block',
+                px: 0.5,
+                mb: 1.5,
+                color: dash.textSecondary,
+                fontWeight: 700,
+                letterSpacing: 1,
+              }}
+            >
+              {section.title}
+            </Typography>
+            <Grid container spacing={{ xs: 1.5, sm: 2 }}>
+              {section.data.map(room => (
+                <Grid item xs={12} sm={6} md={4} lg={3} key={room.id}>
+                  <RoomCard room={room} />
+                </Grid>
+              ))}
             </Grid>
-          ))}
-        </Grid>
+          </Box>
+        ))}
       </Collapse>
     </Box>
   );
@@ -313,9 +326,9 @@ function RoomStatus() {
         if (!grouped[key]) grouped[key] = [];
         grouped[key].push(room);
       });
-      Object.keys(grouped).forEach(k =>
-        grouped[k].sort((a, b) => (a.room_name || '').localeCompare(b.room_name || ''))
-      );
+      Object.keys(grouped).forEach(k => {
+        grouped[k] = sortRoomsByBuildingHierarchy(grouped[k]);
+      });
 
       const totalBeds = data.reduce((s, r) => s + (r.sharing_type || 0), 0);
       const occupiedBeds = data.reduce((s, r) => s + (r.current_occupancy || 0), 0);

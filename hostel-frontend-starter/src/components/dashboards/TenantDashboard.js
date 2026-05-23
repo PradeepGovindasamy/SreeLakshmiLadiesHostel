@@ -9,10 +9,11 @@ import {
   Home, Payment, ExpandMore, ExpandLess,
   CheckCircle, Warning, Error as ErrorIcon, HourglassEmpty, Refresh,
   WbSunny, LunchDining, LocalCafe, DinnerDining, Restaurant,
-  AcUnit, Bathtub, Stairs, SquareFoot, KingBed,
+  Bathtub, Stairs, SquareFoot, KingBed,
 } from '@mui/icons-material';
 import { myAPI, enhancedAPI } from '../../api';
 import { useUser } from '../../contexts/UserContext';
+import { formatRoomType } from '../../utils/roomFormatters';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -149,10 +150,9 @@ export default function TenantDashboard() {
                   <Divider sx={{ my: 1.5 }} />
                   <Grid container spacing={1.5}>
                     {[
-                      { icon: <KingBed fontSize="small" />,     label: 'Type',    value: room.sharing_type_display ?? `${room.sharing_type}-Sharing` },
+                      { icon: <KingBed fontSize="small" />,     label: 'Type',    value: formatRoomType(room) },
                       { icon: <Stairs fontSize="small" />,      label: 'Floor',   value: room.floor_number != null ? `Floor ${room.floor_number}` : '—' },
                       { icon: <SquareFoot fontSize="small" />,  label: 'Size',    value: room.room_size_sqft ? `${room.room_size_sqft} sq.ft` : '—' },
-                      { icon: <AcUnit fontSize="small" />,      label: 'AC',      value: room.ac_room ? 'Yes' : 'No' },
                       { icon: <Bathtub fontSize="small" />,     label: 'Bathroom',value: room.attached_bath ? 'Attached' : 'Common' },
                       { icon: <Payment fontSize="small" />,     label: 'Rent',    value: room.rent ? `₹${Number(room.rent).toLocaleString('en-IN')}/mo` : '—' },
                     ].map(({ icon, label, value }) => (

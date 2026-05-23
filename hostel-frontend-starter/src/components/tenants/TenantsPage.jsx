@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Typography, Divider } from '@mui/material';
 import ActiveTenantsSection from './ActiveTenantsSection';
 import VacatedTenantsSection from './VacatedTenantsSection';
+import { RESIDENT } from '../../config/labels';
 
 /**
  * Main Tenants Management Page
@@ -21,7 +22,7 @@ function TenantsPage() {
   return (
     <Box sx={{ width: '100%', p: 3 }}>
       <Typography variant="h4" gutterBottom>
-        Tenant Management
+        {RESIDENT.management}
       </Typography>
       
       {/* Active Tenants Section - loaded immediately, fully functional */}

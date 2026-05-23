@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { enhancedAPI } from '../api';
 import { useUser } from '../contexts/UserContext';
+import { formatRoomType } from '../utils/roomFormatters';
 import RoomForm from './RoomForm';
 import {
   Box,
@@ -512,7 +513,7 @@ function Rooms() {
                     </TableCell>
                     <TableCell>
                       <Chip
-                        label={room.sharing_type_display || 'Not specified'}
+                        label={formatRoomType(room)}
                         size="small"
                         variant="outlined"
                       />
@@ -630,7 +631,7 @@ function Rooms() {
               <Grid item xs={12} md={6}>
                 <Typography variant="h6" gutterBottom>Basic Information</Typography>
                 <Typography><strong>Property:</strong> {selectedRoom.branch_name}</Typography>
-                <Typography><strong>Room Type:</strong> {selectedRoom.sharing_type_display || 'Not specified'}</Typography>
+                <Typography><strong>Room Type:</strong> {formatRoomType(selectedRoom)}</Typography>
                 <Typography><strong>Capacity:</strong> {selectedRoom.sharing_type || 'N/A'} people</Typography>
                 <Typography><strong>Current Occupancy:</strong> {selectedRoom.current_occupancy || 0}</Typography>
                 <Typography><strong>Rent:</strong> {selectedRoom.rent ? `₹${selectedRoom.rent}` : 'N/A'}</Typography>
@@ -735,7 +736,7 @@ function Rooms() {
                     </TableCell>
                     <TableCell>
                       <Chip
-                        label={room.sharing_type_display || `${room.sharing_type} Sharing`}
+                        label={formatRoomType(room)}
                         size="small"
                         variant="outlined"
                       />

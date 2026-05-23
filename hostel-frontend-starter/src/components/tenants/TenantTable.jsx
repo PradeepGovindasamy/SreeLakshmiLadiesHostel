@@ -20,6 +20,7 @@ import {
   ExitToApp as CheckoutIcon,
   Delete as DeleteIcon
 } from '@mui/icons-material';
+import { RESIDENT } from '../../config/labels';
 
 /**
  * Reusable Tenant Table Component
@@ -79,12 +80,12 @@ function TenantTable({
     return (
       <Box sx={{ textAlign: 'center', p: 5 }}>
         <Typography variant="h6" color="text.secondary">
-          No tenants found
+          No {RESIDENT.plural.toLowerCase()} found
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           {readOnly 
-            ? 'No vacated tenants match your search criteria.'
-            : 'Click "Add Tenant" to onboard a new tenant.'}
+            ? `No vacated ${RESIDENT.plural.toLowerCase()} match your search criteria.`
+            : `Click "${RESIDENT.add}" to onboard a new ${RESIDENT.singular.toLowerCase()}.`}
         </Typography>
       </Box>
     );
@@ -190,7 +191,7 @@ function TenantTable({
 
                   {/* Edit button - only for non-read-only */}
                   {!readOnly && canEdit && onEdit && (
-                    <Tooltip title="Edit Tenant">
+                    <Tooltip title={`Edit ${RESIDENT.singular}`}>
                       <IconButton 
                         size="small" 
                         onClick={() => onEdit(tenant)}
@@ -203,7 +204,7 @@ function TenantTable({
 
                   {/* Checkout button - only for active tenants */}
                   {!readOnly && onCheckout && (
-                    <Tooltip title="Checkout Tenant">
+                    <Tooltip title={`Checkout ${RESIDENT.singular}`}>
                       <IconButton 
                         size="small" 
                         onClick={() => onCheckout(tenant)}
@@ -216,7 +217,7 @@ function TenantTable({
 
                   {/* Delete button - only for non-read-only */}
                   {!readOnly && canDelete && onDelete && (
-                    <Tooltip title="Delete Tenant">
+                    <Tooltip title={`Delete ${RESIDENT.singular}`}>
                       <IconButton 
                         size="small" 
                         onClick={() => onDelete(tenant)}

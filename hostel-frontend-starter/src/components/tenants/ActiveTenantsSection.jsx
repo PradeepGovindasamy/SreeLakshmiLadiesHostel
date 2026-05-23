@@ -23,6 +23,7 @@ import {
   DialogActions
 } from '@mui/material';
 import { Add as AddIcon, People as PeopleIcon } from '@mui/icons-material';
+import { RESIDENT } from '../../config/labels';
 
 /**
  * Active Tenants Section
@@ -200,7 +201,7 @@ function ActiveTenantsSection() {
     fetchActiveTenants();
     setTenantFormOpen(false);
     setEditingTenant(null);
-    showAlert(editingTenant ? 'Tenant updated successfully' : 'Tenant added successfully');
+    showAlert(editingTenant ? `${RESIDENT.singular} updated successfully` : `${RESIDENT.singular} added successfully`);
   };
 
   const canEdit = hasAnyRole(['owner', 'admin', 'warden']);
@@ -213,7 +214,7 @@ function ActiveTenantsSection() {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
         <PeopleIcon color="primary" fontSize="large" />
         <Typography variant="h5" component="h2">
-          Active Tenants
+          {RESIDENT.activeSection}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
           ({loading ? '...' : tenants.length})
@@ -223,7 +224,7 @@ function ActiveTenantsSection() {
       {/* Filters and Actions - EXISTING filters preserved exactly */}
       <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
         <TextField
-          label="Search tenants..."
+          label={`Search ${RESIDENT.plural.toLowerCase()}...`}
           placeholder="Name, phone, email, room..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -253,7 +254,7 @@ function ActiveTenantsSection() {
             startIcon={<AddIcon />}
             onClick={handleAdd}
           >
-            Add Tenant
+            {RESIDENT.add}
           </Button>
         )}
       </Box>
@@ -302,7 +303,7 @@ function ActiveTenantsSection() {
 
       {/* Checkout Confirmation Dialog */}
       <Dialog open={checkoutDialog} onClose={() => setCheckoutDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Checkout Tenant</DialogTitle>
+        <DialogTitle>Checkout {RESIDENT.singular}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Checking out: <strong>{checkoutTenant?.name}</strong>

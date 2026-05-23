@@ -22,6 +22,7 @@ import {
   AddCircleOutline as RecordIcon,
 } from '@mui/icons-material';
 import { enhancedAPI } from '../../api';
+import { RESIDENT } from '../../config/labels';
 
 // ── Rent status chip ──────────────────────────────────────────────────────────
 function RentStatusChip({ status }) {
@@ -344,14 +345,14 @@ function TenantDetailsDialog({ open, onClose, tenant, readOnly = false, onPaymen
         <DialogTitle sx={{ pb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <PersonIcon color="primary" />
-            <Typography variant="h6" fontWeight={700}>Tenant Details</Typography>
+            <Typography variant="h6" fontWeight={700}>{RESIDENT.details}</Typography>
             <Chip {...statusChipProps} size="small" />
             {tenant.current_rent_status && (
               <RentStatusChip status={tenant.current_rent_status.rent_status} />
             )}
           </Box>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            {tenant.name} · {tenant.room_display || tenant.room_detail?.room_name || 'No room assigned'}
+            {tenant.name} · {tenant.room_display || tenant.room_detail?.room_name || RESIDENT.noRoom}
           </Typography>
         </DialogTitle>
 
