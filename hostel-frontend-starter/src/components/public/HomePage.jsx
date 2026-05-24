@@ -25,6 +25,7 @@ import {
   LocationOn
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { SHOW_MANAGEMENT_LOGIN_ON_HOMEPAGE } from '../../config/publicSite';
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -62,13 +63,15 @@ const HomePage = () => {
           <Button color="inherit" href="#about">About</Button>
           <Button color="inherit" href="#amenities">Amenities</Button>
           <Button color="inherit" href="#contact">Contact</Button>
-          <Button 
-            variant="contained" 
-            sx={{ ml: 2, backgroundColor: '#e74c3c' }}
-            onClick={() => navigate('/login')}
-          >
-            Management Login
-          </Button>
+          {SHOW_MANAGEMENT_LOGIN_ON_HOMEPAGE ? (
+            <Button
+              variant="contained"
+              sx={{ ml: 2, backgroundColor: '#e74c3c' }}
+              onClick={() => navigate('/login')}
+            >
+              Management Login
+            </Button>
+          ) : null}
         </Toolbar>
       </AppBar>
 
@@ -335,13 +338,15 @@ const HomePage = () => {
               <Typography variant="body2">
                 © 2026 Sree Lakshmi Ladies Hostel. All rights reserved.
               </Typography>
-              <Button 
-                color="inherit" 
-                onClick={() => navigate('/login')}
-                sx={{ mt: 2 }}
-              >
-                Management Access
-              </Button>
+              {SHOW_MANAGEMENT_LOGIN_ON_HOMEPAGE ? (
+                <Button
+                  color="inherit"
+                  onClick={() => navigate('/login')}
+                  sx={{ mt: 2 }}
+                >
+                  Management Access
+                </Button>
+              ) : null}
             </Grid>
           </Grid>
         </Container>

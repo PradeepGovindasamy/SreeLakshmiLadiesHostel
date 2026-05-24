@@ -92,7 +92,7 @@ class BranchSerializer(serializers.ModelSerializer):
         model = Branch
         fields = [
             # Basic Information
-            'id', 'name', 'address', 'city', 'state', 'pincode', 'description',
+            'id', 'name', 'address', 'city', 'state', 'pincode', 'maps_url', 'description',
             # Contact Information
             'contact_phone', 'contact_email', 'emergency_contact',
             # Property Details

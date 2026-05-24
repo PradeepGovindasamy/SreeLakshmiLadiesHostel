@@ -42,6 +42,7 @@ function PropertyForm({ open, onClose, onSave, property = null, isEdit = false }
     city: '',
     state: '',
     pincode: '',
+    maps_url: '',
     contact_phone: '',
     contact_email: '',
     owner: '',
@@ -83,6 +84,7 @@ function PropertyForm({ open, onClose, onSave, property = null, isEdit = false }
           city: property.city || '',
           state: property.state || '',
           pincode: property.pincode || '',
+          maps_url: property.maps_url || '',
           contact_phone: property.contact_phone || '',
           contact_email: property.contact_email || '',
           // Handle owner field - could be object or ID
@@ -263,6 +265,7 @@ function PropertyForm({ open, onClose, onSave, property = null, isEdit = false }
       city: '',
       state: '',
       pincode: '',
+      maps_url: '',
       contact_phone: '',
       contact_email: '',
       owner: '',
@@ -346,6 +349,16 @@ function PropertyForm({ open, onClose, onSave, property = null, isEdit = false }
                 label="Pincode"
                 value={formData.pincode}
                 onChange={(e) => handleInputChange('pincode', e.target.value)}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Google Maps link"
+                placeholder="https://maps.app.goo.gl/..."
+                value={formData.maps_url}
+                onChange={(e) => handleInputChange('maps_url', e.target.value)}
+                helperText="Paste the share link from Google Maps for the exact property pin. Used when sharing available rooms on WhatsApp."
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -620,6 +633,9 @@ function PropertyForm({ open, onClose, onSave, property = null, isEdit = false }
               <Typography><strong>City:</strong> {formData.city}</Typography>
               <Typography><strong>State:</strong> {formData.state}</Typography>
               <Typography><strong>Pincode:</strong> {formData.pincode}</Typography>
+              {formData.maps_url ? (
+                <Typography><strong>Maps:</strong> {formData.maps_url}</Typography>
+              ) : null}
               <Typography><strong>Floors:</strong> {formData.total_floors}</Typography>
             </Grid>
             

@@ -18,6 +18,7 @@ class Branch(models.Model):
     city = models.CharField(max_length=50, null=True, blank=True)
     state = models.CharField(max_length=50, null=True, blank=True)
     pincode = models.CharField(max_length=10, null=True, blank=True)
+    maps_url = models.URLField(max_length=500, blank=True, help_text='Google Maps share link for exact property location')
     description = models.TextField(blank=True)
     
     # Contact Information
