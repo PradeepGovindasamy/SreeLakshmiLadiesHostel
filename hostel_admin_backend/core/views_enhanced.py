@@ -480,6 +480,14 @@ class EnhancedRoomViewSet(viewsets.ModelViewSet):
                 )
             elif status == 'maintenance':
                 queryset = queryset.filter(is_available=False)
+
+        ac_room = self.request.query_params.get('ac_room', None)
+        if ac_room not in (None, '', 'all'):
+            ac_value = str(ac_room).lower()
+            if ac_value in ('true', '1', 'yes', 'ac'):
+                queryset = queryset.filter(ac_room=True)
+            elif ac_value in ('false', '0', 'no', 'non-ac', 'non_ac', 'nonac'):
+                queryset = queryset.filter(ac_room=False)
         
         return queryset
     

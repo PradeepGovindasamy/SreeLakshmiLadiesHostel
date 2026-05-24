@@ -26,6 +26,7 @@ const NAV_ICONS = {
   'Room Status':      <SensorDoor fontSize="small" />,
   'Groceries':        <Inventory2 fontSize="small" />,
   'Machines':         <PrecisionManufacturing fontSize="small" />,
+  'Staff':            <Engineering fontSize="small" />,
   'Workers':          <Engineering fontSize="small" />,
   'User Management':  <ManageAccounts fontSize="small" />,
 };

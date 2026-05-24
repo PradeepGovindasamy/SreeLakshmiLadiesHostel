@@ -9,11 +9,11 @@ import {
   Home, Payment, ExpandMore, ExpandLess,
   CheckCircle, Warning, Error as ErrorIcon, HourglassEmpty, Refresh,
   WbSunny, LunchDining, LocalCafe, DinnerDining, Restaurant,
-  Bathtub, Stairs, SquareFoot, KingBed,
+  Bathtub, Stairs, SquareFoot, KingBed, AcUnit,
 } from '@mui/icons-material';
 import { myAPI, enhancedAPI } from '../../api';
 import { useUser } from '../../contexts/UserContext';
-import { formatRoomType } from '../../utils/roomFormatters';
+import { formatRoomType, formatRoomAcLabel } from '../../utils/roomFormatters';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -151,6 +151,7 @@ export default function TenantDashboard() {
                   <Grid container spacing={1.5}>
                     {[
                       { icon: <KingBed fontSize="small" />,     label: 'Type',    value: formatRoomType(room) },
+                      { icon: <AcUnit fontSize="small" />,      label: 'AC',      value: formatRoomAcLabel(room) },
                       { icon: <Stairs fontSize="small" />,      label: 'Floor',   value: room.floor_number != null ? `Floor ${room.floor_number}` : '—' },
                       { icon: <SquareFoot fontSize="small" />,  label: 'Size',    value: room.room_size_sqft ? `${room.room_size_sqft} sq.ft` : '—' },
                       { icon: <Bathtub fontSize="small" />,     label: 'Bathroom',value: room.attached_bath ? 'Attached' : 'Common' },

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { enhancedAPI } from '../api';
 import { useUser } from '../contexts/UserContext';
-import { formatRoomType } from '../utils/roomFormatters';
+import { formatRoomType, formatRoomAcLabel, filterRoomsByAc, isAcRoom } from '../utils/roomFormatters';
 import RoomForm from './RoomForm';
 import {
   Box,
@@ -61,6 +61,7 @@ function Rooms() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedBranch, setSelectedBranch] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [selectedAc, setSelectedAc] = useState('all');
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [roomDetailsDialog, setRoomDetailsDialog] = useState(false);
   const [roomFormOpen, setRoomFormOpen] = useState(false);
@@ -77,10 +78,8 @@ function Rooms() {
   }, []);
 
   useEffect(() => {
-    if (branches.length > 0) {
-      fetchRooms();
-    }
-  }, [selectedBranch, selectedStatus, branches]);
+    fetchRooms();
+  }, [selectedBranch, selectedStatus, selectedAc, branches]);
 
   const fetchInitialData = async () => {
     try {
@@ -128,6 +127,9 @@ function Rooms() {
       if (selectedStatus !== 'all') {
         params.status = selectedStatus;
       }
+      if (selectedAc !== 'all') {
+        params.ac_room = selectedAc;
+      }
       
       console.log('Rooms API call params:', params);
       console.log('API URL will be:', '/api/v2/rooms/' + (Object.keys(params).length > 0 ? '?' + new URLSearchParams(params).toString() : ''));
@@ -148,7 +150,8 @@ function Rooms() {
       }
       
       console.log('Processed room data:', roomData);
-      console.log('Room statuses:', roomData.map(room => ({ name: room.room_name, status: room.status, is_available: room.is_available, occupancy: room.current_occupancy, capacity: room.sharing_type })));
+      roomData = filterRoomsByAc(roomData, selectedAc);
+      console.log('Room statuses:', roomData.map(room => ({ name: room.room_name, status: room.status, is_available: room.is_available, occupancy: room.current_occupancy, capacity: room.sharing_type, ac_room: room.ac_room })));
       setRooms(roomData);
     } catch (error) {
       console.error('Error fetching rooms:', error);
@@ -458,6 +461,22 @@ function Rooms() {
                 <MenuItem value="all">All Statuses</MenuItem>
                 <MenuItem value="available">Available</MenuItem>
                 <MenuItem value="occupied">Occupied</MenuItem>
+                <MenuItem value="maintenance">Maintenance</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+
+          <Grid item xs={12} sm={4}>
+            <FormControl fullWidth>
+              <InputLabel>Filter by AC</InputLabel>
+              <Select
+                value={selectedAc}
+                label="Filter by AC"
+                onChange={(e) => setSelectedAc(e.target.value)}
+              >
+                <MenuItem value="all">All Rooms</MenuItem>
+                <MenuItem value="true">AC</MenuItem>
+                <MenuItem value="false">Non-AC</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -512,11 +531,19 @@ function Rooms() {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        label={formatRoomType(room)}
-                        size="small"
-                        variant="outlined"
-                      />
+                      <Box display="flex" gap={0.5} flexWrap="wrap">
+                        <Chip
+                          label={formatRoomType(room)}
+                          size="small"
+                          variant="outlined"
+                        />
+                        <Chip
+                          label={formatRoomAcLabel(room)}
+                          size="small"
+                          variant="outlined"
+                          color={isAcRoom(room) ? 'primary' : 'default'}
+                        />
+                      </Box>
                     </TableCell>
                     <TableCell>
                       <Box display="flex" alignItems="center">
@@ -632,6 +659,7 @@ function Rooms() {
                 <Typography variant="h6" gutterBottom>Basic Information</Typography>
                 <Typography><strong>Property:</strong> {selectedRoom.branch_name}</Typography>
                 <Typography><strong>Room Type:</strong> {formatRoomType(selectedRoom)}</Typography>
+                <Typography><strong>AC:</strong> {formatRoomAcLabel(selectedRoom)}</Typography>
                 <Typography><strong>Capacity:</strong> {selectedRoom.sharing_type || 'N/A'} people</Typography>
                 <Typography><strong>Current Occupancy:</strong> {selectedRoom.current_occupancy || 0}</Typography>
                 <Typography><strong>Rent:</strong> {selectedRoom.rent ? `₹${selectedRoom.rent}` : 'N/A'}</Typography>
@@ -663,7 +691,6 @@ function Rooms() {
                   <Typography><strong>Size:</strong> {selectedRoom.room_size_sqft} sq ft</Typography>
                 )}
                 <Typography><strong>Attached Bath:</strong> {selectedRoom.attached_bath ? 'Yes' : 'No'}</Typography>
-                <Typography><strong>AC Room:</strong> {selectedRoom.ac_room ? 'Yes' : 'No'}</Typography>
                 <Typography><strong>Created:</strong> 
                   {selectedRoom.created_at ? new Date(selectedRoom.created_at).toLocaleDateString() : 'N/A'}
                 </Typography>
@@ -735,11 +762,19 @@ function Rooms() {
                       </Box>
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        label={formatRoomType(room)}
-                        size="small"
-                        variant="outlined"
-                      />
+                      <Box display="flex" gap={0.5} flexWrap="wrap">
+                        <Chip
+                          label={formatRoomType(room)}
+                          size="small"
+                          variant="outlined"
+                        />
+                        <Chip
+                          label={formatRoomAcLabel(room)}
+                          size="small"
+                          variant="outlined"
+                          color={isAcRoom(room) ? 'primary' : 'default'}
+                        />
+                      </Box>
                     </TableCell>
                     <TableCell>Floor {room.floor_number || 'N/A'}</TableCell>
                     <TableCell>₹{room.rent || 'N/A'}</TableCell>

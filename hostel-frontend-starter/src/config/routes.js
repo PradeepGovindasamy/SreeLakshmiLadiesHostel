@@ -137,9 +137,9 @@ export const routeConfig = [
     path: '/workers',
     component: Workers,
     requiredRoles: ['owner', 'admin'],
-    title: 'Workers Management',
+    title: 'Staff Management',
     showInNav: true,
-    navLabel: 'Workers'
+    navLabel: 'Staff'
   },
 
   // Owner/Admin service requests (not warden nav)

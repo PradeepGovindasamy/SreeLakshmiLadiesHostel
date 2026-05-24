@@ -2,13 +2,18 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Container, Paper, Typography, Button, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Dialog, DialogTitle, DialogContent,
-  DialogActions, TextField, IconButton, Chip, Alert, Grid, Card, CardContent, Avatar
+  DialogActions, TextField, IconButton, Chip, Alert, Grid, Card, CardContent, Avatar,
+  FormControl, InputLabel, Select, MenuItem,
 } from '@mui/material';
 import { Add, Edit, Delete, PersonAdd, Assignment } from '@mui/icons-material';
-import api from '../api';
+import api, { enhancedAPI } from '../api';
+import { STAFF } from '../config/staffLabels';
 
 function Workers() {
   const [workers, setWorkers] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [selectedBranch, setSelectedBranch] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [openAttendanceDialog, setOpenAttendanceDialog] = useState(false);
@@ -19,23 +24,43 @@ function Workers() {
   const [stats, setStats] = useState({ total: 0, active: 0, onLeave: 0, terminated: 0 });
 
   useEffect(() => {
-    fetchWorkers();
+    fetchBranches();
     fetchAttendanceRecords();
   }, []);
 
+  useEffect(() => {
+    fetchWorkers();
+  }, [selectedBranch, selectedStatus]);
+
+  const fetchBranches = async () => {
+    try {
+      const response = await enhancedAPI.branches.list();
+      const branchData = Array.isArray(response.data)
+        ? response.data
+        : (response.data.results || []);
+      setBranches(branchData);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Error fetching properties');
+    }
+  };
+
   const fetchWorkers = async () => {
     try {
-      const response = await api.get('/api/workers/workers/');
-      setWorkers(response.data);
-      
-      // Calculate stats
-      const total = response.data.length;
-      const active = response.data.filter(w => w.employment_status === 'active').length;
-      const onLeave = response.data.filter(w => w.employment_status === 'on_leave').length;
-      const terminated = response.data.filter(w => w.employment_status === 'terminated').length;
+      const params = {};
+      if (selectedBranch !== 'all') params.branch = selectedBranch;
+      if (selectedStatus !== 'all') params.status = selectedStatus;
+
+      const response = await api.get('/api/workers/workers/', { params });
+      const data = Array.isArray(response.data) ? response.data : (response.data.results || []);
+      setWorkers(data);
+
+      const total = data.length;
+      const active = data.filter(w => w.status === 'active').length;
+      const onLeave = data.filter(w => w.status === 'on_leave').length;
+      const terminated = data.filter(w => w.status === 'terminated').length;
       setStats({ total, active, onLeave, terminated });
     } catch (err) {
-      setError(err.response?.data?.message || 'Error fetching workers');
+      setError(err.response?.data?.message || `Error fetching ${STAFF.plural.toLowerCase()}`);
     }
   };
 
@@ -59,11 +84,11 @@ function Workers() {
   };
 
   const handleDeleteWorker = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this worker?')) return;
+    if (!window.confirm(`Are you sure you want to delete this ${STAFF.singular.toLowerCase()}?`)) return;
     
     try {
       await api.delete(`/api/workers/workers/${id}/`);
-      setSuccess('Worker deleted successfully');
+      setSuccess(`${STAFF.singular} deleted successfully`);
       fetchWorkers();
     } catch (err) {
       setError(err.response?.data?.message || 'Error deleting worker');
@@ -102,7 +127,7 @@ function Workers() {
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>Total Workers</Typography>
+              <Typography color="textSecondary" gutterBottom>Total {STAFF.plural}</Typography>
               <Typography variant="h4">{stats.total}</Typography>
             </CardContent>
           </Card>
@@ -135,16 +160,52 @@ function Workers() {
 
       <Paper sx={{ p: 3, mb: 3 }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Typography variant="h4">Workers Management</Typography>
+          <Typography variant="h4">{STAFF.management}</Typography>
           <Button
             variant="contained"
             color="primary"
             startIcon={<PersonAdd />}
             onClick={handleAddWorker}
           >
-            Add Worker
+            {STAFF.add}
           </Button>
         </Box>
+
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={6} md={4}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Filter by Property</InputLabel>
+              <Select
+                value={selectedBranch}
+                label="Filter by Property"
+                onChange={(e) => setSelectedBranch(e.target.value)}
+              >
+                <MenuItem value="all">All Properties</MenuItem>
+                {branches.map((branch) => (
+                  <MenuItem key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Filter by Status</InputLabel>
+              <Select
+                value={selectedStatus}
+                label="Filter by Status"
+                onChange={(e) => setSelectedStatus(e.target.value)}
+              >
+                <MenuItem value="all">All Statuses</MenuItem>
+                <MenuItem value="active">Active</MenuItem>
+                <MenuItem value="on_leave">On Leave</MenuItem>
+                <MenuItem value="resigned">Resigned</MenuItem>
+                <MenuItem value="terminated">Terminated</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+        </Grid>
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
@@ -168,22 +229,22 @@ function Workers() {
               {workers.map((worker) => (
                 <TableRow key={worker.id}>
                   <TableCell>
-                    <Avatar src={worker.photo} alt={worker.full_name}>
-                      {worker.full_name.charAt(0)}
+                    <Avatar src={worker.photo} alt={worker.name}>
+                      {worker.name?.charAt(0)}
                     </Avatar>
                   </TableCell>
-                  <TableCell>{worker.full_name}</TableCell>
-                  <TableCell>{worker.role}</TableCell>
+                  <TableCell>{worker.name}</TableCell>
+                  <TableCell>{worker.worker_type_display || worker.worker_type}</TableCell>
                   <TableCell>{worker.branch_name}</TableCell>
                   <TableCell>{worker.phone_number}</TableCell>
                   <TableCell>₹{worker.salary}</TableCell>
                   <TableCell>
-                    {worker.date_of_joining ? new Date(worker.date_of_joining).toLocaleDateString() : 'N/A'}
+                    {worker.joining_date ? new Date(worker.joining_date).toLocaleDateString() : 'N/A'}
                   </TableCell>
                   <TableCell>
                     <Chip 
-                      label={worker.employment_status.replace('_', ' ').toUpperCase()} 
-                      color={getStatusColor(worker.employment_status)}
+                      label={(worker.status_display || worker.status || '').replace('_', ' ').toUpperCase()} 
+                      color={getStatusColor(worker.status)}
                       size="small"
                     />
                   </TableCell>
@@ -216,7 +277,7 @@ function Workers() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Worker</TableCell>
+                <TableCell>Staff Member</TableCell>
                 <TableCell>Date</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Check In</TableCell>

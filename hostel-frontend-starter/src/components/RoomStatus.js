@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { enhancedAPI } from '../api';
 import { sortRoomsByBuildingHierarchy, groupRoomsByFloor } from '../utils/roomSort';
-import { formatRoomType } from '../utils/roomFormatters';
+import { formatRoomType, formatRoomAcLabel } from '../utils/roomFormatters';
 import {
   Box, Typography, Grid, CircularProgress, Stack, Alert, IconButton,
   Collapse, alpha,
@@ -77,6 +77,10 @@ function RoomCard({ room }) {
           <Typography variant="caption" sx={{ color: dash.textMuted }}>·</Typography>
           <Typography variant="caption" sx={{ color: dash.textSecondary }}>
             {formatRoomType(room)}
+          </Typography>
+          <Typography variant="caption" sx={{ color: dash.textMuted }}>·</Typography>
+          <Typography variant="caption" sx={{ color: dash.textSecondary }}>
+            {formatRoomAcLabel(room)}
           </Typography>
           {room.attached_bath && (
             <>
