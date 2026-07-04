@@ -524,6 +524,7 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
     --------------------------
     status   : active | vacated | pending   (lifecycle filter)
     branch   : <branch_id> | all            (branch filter; ignored for tenant role)
+    room     : <room_id>                    (room filter; must be within accessible branch)
     search   : <string>                     (name / phone / email icontains)
     page     : <int>                        (pagination; works with DRF PageNumberPagination)
     page_size: <int>
@@ -581,7 +582,12 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
         if branch_param and branch_param != 'all':
             queryset = queryset.filter(room__branch_id=branch_param)
 
-        # ── 4. Full-text search (name / phone / email) ─────────────────────
+        # ── 4. Room filter ─────────────────────────────────────────────────
+        room_param = self.request.query_params.get('room', '').strip()
+        if room_param and room_param != 'all':
+            queryset = queryset.filter(room_id=room_param)
+
+        # ── 5. Full-text search (name / phone / email) ─────────────────────
         search_param = self.request.query_params.get('search', '').strip()
         if search_param:
             queryset = queryset.filter(

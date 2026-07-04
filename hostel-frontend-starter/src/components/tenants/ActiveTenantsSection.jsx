@@ -38,9 +38,11 @@ import { RESIDENT } from '../../config/labels';
 function ActiveTenantsSection() {
   const [tenants, setTenants] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('all');
+  const [selectedRoom, setSelectedRoom] = useState('all');
   const [tenantFormOpen, setTenantFormOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState(null);
   const [detailsDialog, setDetailsDialog] = useState(false);
@@ -57,12 +59,22 @@ function ActiveTenantsSection() {
     fetchBranches();
   }, []);
 
+  // Fetch rooms when branch selection changes; reset room filter
+  useEffect(() => {
+    setSelectedRoom('all');
+    if (selectedBranch !== 'all') {
+      fetchRooms(selectedBranch);
+    } else {
+      setRooms([]);
+    }
+  }, [selectedBranch]);
+
   // Fetch active tenants when filters change
   useEffect(() => {
     if (branches.length > 0) {
       fetchActiveTenants();
     }
-  }, [selectedBranch, searchTerm, branches]);
+  }, [selectedBranch, selectedRoom, searchTerm, branches]);
 
   const fetchBranches = async () => {
     try {
@@ -74,9 +86,19 @@ function ActiveTenantsSection() {
     }
   };
 
+  const fetchRooms = async (branchId) => {
+    try {
+      const response = await enhancedAPI.rooms.list({ branch: branchId });
+      setRooms(response.data);
+    } catch (error) {
+      console.error('Error fetching rooms:', error);
+      showAlert('Failed to load rooms', 'error');
+    }
+  };
+
   /**
    * Fetch active tenants from backend
-   * Respects existing filters: branch, search
+   * Respects existing filters: branch, room, search
    * Backend filters by status=active to exclude vacated tenants
    */
   const fetchActiveTenants = async () => {
@@ -88,6 +110,9 @@ function ActiveTenantsSection() {
       
       if (selectedBranch !== 'all') {
         params.branch = selectedBranch;
+      }
+      if (selectedRoom !== 'all') {
+        params.room = selectedRoom;
       }
       if (searchTerm.trim()) {
         params.search = searchTerm.trim();
@@ -247,6 +272,24 @@ function ActiveTenantsSection() {
             ))}
           </Select>
         </FormControl>
+
+        {selectedBranch !== 'all' && (
+          <FormControl size="small" sx={{ minWidth: '150px' }}>
+            <InputLabel>Room</InputLabel>
+            <Select
+              value={selectedRoom}
+              onChange={(e) => setSelectedRoom(e.target.value)}
+              label="Room"
+            >
+              <MenuItem value="all">All Rooms</MenuItem>
+              {rooms.map((room) => (
+                <MenuItem key={room.id} value={room.id}>
+                  {room.room_name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
 
         {canAdd && (
           <Button
