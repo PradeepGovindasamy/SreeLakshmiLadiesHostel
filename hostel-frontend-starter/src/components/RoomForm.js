@@ -21,12 +21,16 @@ import {
   StepLabel,
   Chip,
   Slider,
-  InputAdornment
+  InputAdornment,
+  Stack,
+  LinearProgress,
+  Divider,
 } from '@mui/material';
+import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { enhancedAPI } from '../api';
 import { useUser } from '../contexts/UserContext';
 
-const steps = ['Basic Information', 'Room Details', 'Pricing & Features', 'Review & Save'];
+const steps = ['Basic Information', 'Room Details', 'Pricing & Features', 'Review & Save', 'Cot Setup'];
 
 const roomTypes = [
   { value: 'single', label: 'One Sharing' },
@@ -81,6 +85,14 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [branches, setBranches] = useState([]);
+
+  // Cot setup state (step 4)
+  const [savedRoomId, setSavedRoomId] = useState(null);
+  const [roomCots, setRoomCots] = useState([]);
+  const [savingCot, setSavingCot] = useState(false);
+  const [cotError, setCotError] = useState('');
+  const [newCotNumber, setNewCotNumber] = useState('');
+  const [newCotType, setNewCotType] = useState('S');
   
   const { getUserRole } = useUser();
   const userRole = getUserRole();
@@ -177,6 +189,12 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
             room_type: mapSharingTypeToRoomType(room.sharing_type),
             capacity: room.sharing_type || 2
           });
+          // Load existing cots for edit mode
+          setSavedRoomId(room.id);
+          try {
+            const cotRes = await enhancedAPI.rooms.listCots(room.id);
+            setRoomCots(cotRes.data || []);
+          } catch (_) { setRoomCots([]); }
         } else if (copyFromRoom) {
           // Copy mode: populate form with source room data but clear unique fields
           console.log('Copying from room:', copyFromRoom);
@@ -326,28 +344,36 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
       setError('');
 
       const submitData = {
-        room_name: formData.room_number, // Map frontend room_number to backend room_name
+        room_name: formData.room_number,
         branch: formData.branch,
-        sharing_type: mapRoomTypeToSharingType(formData.room_type), // Map frontend room_type to backend sharing_type
-        floor_number: parseInt(formData.floor), // Map frontend floor to backend floor_number
-        rent: parseFloat(formData.rent_amount), // Map frontend rent_amount to backend rent
-        room_size_sqft: formData.area_sqft ? parseFloat(formData.area_sqft) : null, // Map frontend area_sqft to backend room_size_sqft
-        is_available: formData.status === 'available', // Map frontend status to backend is_available
-        ac_room: formData.is_ac, // Map frontend is_ac to backend ac_room
-        attached_bath: formData.has_attached_bathroom, // Map frontend has_attached_bathroom to backend attached_bath
-        // Note: Other fields like description, furniture details etc. don't exist in backend model yet
+        sharing_type: mapRoomTypeToSharingType(formData.room_type),
+        floor_number: parseInt(formData.floor),
+        rent: parseFloat(formData.rent_amount),
+        room_size_sqft: formData.area_sqft ? parseFloat(formData.area_sqft) : null,
+        is_available: formData.status === 'available',
+        ac_room: formData.is_ac,
+        attached_bath: formData.has_attached_bathroom,
       };
 
       console.log('Submitting room data:', submitData);
 
+      let roomId = savedRoomId;
       if (isEdit) {
         await enhancedAPI.rooms.update(room.id, submitData);
+        roomId = room.id;
       } else {
-        await enhancedAPI.rooms.create(submitData);
+        const res = await enhancedAPI.rooms.create(submitData);
+        roomId = res.data.id;
+        setSavedRoomId(roomId);
       }
 
-      onSave();
-      handleClose();
+      // Load cots for the saved room and proceed to Cot Setup step
+      try {
+        const cotRes = await enhancedAPI.rooms.listCots(roomId);
+        setRoomCots(cotRes.data || []);
+      } catch (_) { setRoomCots([]); }
+
+      setActiveStep(4); // jump to Cot Setup
     } catch (error) {
       console.error('Error saving room:', error);
       setError(error.response?.data?.message || 'Failed to save room');
@@ -356,9 +382,49 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
     }
   };
 
+  const handleAddCot = async () => {
+    const num = parseInt(newCotNumber, 10);
+    if (!num || num < 1 || !savedRoomId) { setCotError('Enter a valid cot number.'); return; }
+    setSavingCot(true);
+    setCotError('');
+    try {
+      await enhancedAPI.rooms.addCot(savedRoomId, { cot_number: num, cot_type: newCotType });
+      setNewCotNumber('');
+      setNewCotType('S');
+      const cotRes = await enhancedAPI.rooms.listCots(savedRoomId);
+      setRoomCots(cotRes.data || []);
+    } catch (err) {
+      setCotError(err.response?.data?.non_field_errors?.[0] || err.response?.data?.detail || 'Failed to add cot.');
+    } finally {
+      setSavingCot(false);
+    }
+  };
+
+  const handleDeleteCot = async (cot) => {
+    if (cot.is_occupied) return;
+    if (!window.confirm(`Delete cot ${cot.cot_code}?`)) return;
+    setSavingCot(true);
+    setCotError('');
+    try {
+      await enhancedAPI.cots.delete(cot.id);
+      const cotRes = await enhancedAPI.rooms.listCots(savedRoomId);
+      setRoomCots(cotRes.data || []);
+    } catch (err) {
+      setCotError(err.response?.data?.error || 'Failed to delete cot.');
+    } finally {
+      setSavingCot(false);
+    }
+  };
+
   const handleClose = () => {
     setActiveStep(0);
     setError('');
+    setSavedRoomId(null);
+    setRoomCots([]);
+    setSavingCot(false);
+    setCotError('');
+    setNewCotNumber('');
+    setNewCotType('S');
     setFormData({
       room_number: '',
       room_name: '',
@@ -791,6 +857,90 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
           </Grid>
         );
 
+      case 4:
+        return (
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                Room saved successfully. Optionally configure cots for cot-level vacancy tracking.
+                Each resident can be assigned a specific cot when they check in.
+              </Typography>
+              <Typography variant="subtitle2" gutterBottom>
+                Add a Cot
+              </Typography>
+              {savingCot && <LinearProgress sx={{ mb: 1 }} />}
+              {cotError && (
+                <Alert severity="error" sx={{ mb: 1 }} onClose={() => setCotError('')}>
+                  {cotError}
+                </Alert>
+              )}
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="flex-end" sx={{ mb: 3 }}>
+                <TextField
+                  label="Cot Number"
+                  type="number"
+                  size="small"
+                  value={newCotNumber}
+                  onChange={e => setNewCotNumber(e.target.value)}
+                  inputProps={{ min: 1 }}
+                  sx={{ width: 130 }}
+                  disabled={savingCot}
+                />
+                <FormControl size="small" sx={{ minWidth: 160 }} disabled={savingCot}>
+                  <InputLabel>Type</InputLabel>
+                  <Select value={newCotType} label="Type" onChange={e => setNewCotType(e.target.value)}>
+                    <MenuItem value="S">Single</MenuItem>
+                    <MenuItem value="B">Bottom Bunk</MenuItem>
+                    <MenuItem value="T">Top Bunk</MenuItem>
+                    <MenuItem value="D">Double</MenuItem>
+                  </Select>
+                </FormControl>
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<AddIcon />}
+                  onClick={handleAddCot}
+                  disabled={savingCot || !newCotNumber}
+                >
+                  Add Cot
+                </Button>
+              </Stack>
+
+              <Divider sx={{ mb: 2 }} />
+              <Typography variant="subtitle2" gutterBottom>
+                Configured Cots
+                {roomCots.length > 0 && (
+                  <Typography component="span" variant="caption" color="textSecondary" sx={{ ml: 1 }}>
+                    ({roomCots.filter(c => !c.is_occupied).length} free / {roomCots.length} total)
+                  </Typography>
+                )}
+              </Typography>
+              {roomCots.length > 0 ? (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {roomCots.map(cot => (
+                    <Chip
+                      key={cot.id}
+                      label={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{cot.cot_code}</span>
+                          <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>— {cot.cot_type_display}</span>
+                        </Box>
+                      }
+                      color={cot.is_occupied ? 'error' : 'success'}
+                      variant={cot.is_occupied ? 'filled' : 'outlined'}
+                      onDelete={cot.is_occupied ? undefined : () => handleDeleteCot(cot)}
+                      title={cot.is_occupied ? 'Occupied' : 'Available — click × to delete'}
+                    />
+                  ))}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="textSecondary">
+                  No cots added yet. You can skip this step and add cots later from the room details view.
+                </Typography>
+              )}
+            </Grid>
+          </Grid>
+        );
+
       default:
         return null;
     }
@@ -831,25 +981,27 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
       
       <DialogActions>
         <Button onClick={handleClose}>Cancel</Button>
-        <Button 
-          onClick={handleBack} 
-          disabled={activeStep === 0}
-        >
-          Back
-        </Button>
-        {activeStep === steps.length - 1 ? (
-          <Button 
-            onClick={handleSubmit} 
+        {activeStep < 4 && (
+          <Button onClick={handleBack} disabled={activeStep === 0}>
+            Back
+          </Button>
+        )}
+        {activeStep === steps.length - 2 ? (
+          // Step 3: Review & Save — save the room and move to Cot Setup
+          <Button onClick={handleSubmit} variant="contained" disabled={loading}>
+            {loading ? 'Saving...' : (isEdit ? 'Update Room' : 'Save Room')}
+          </Button>
+        ) : activeStep === steps.length - 1 ? (
+          // Step 4: Cot Setup — Done closes the form
+          <Button
             variant="contained"
-            disabled={loading}
+            color="success"
+            onClick={() => { onSave(); handleClose(); }}
           >
-            {loading ? 'Saving...' : (isEdit ? 'Update Room' : 'Create Room')}
+            Done
           </Button>
         ) : (
-          <Button 
-            onClick={handleNext} 
-            variant="contained"
-          >
+          <Button onClick={handleNext} variant="contained">
             Next
           </Button>
         )}

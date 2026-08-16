@@ -168,6 +168,16 @@ export const enhancedAPI = {
     delete: (id) => api.delete(`/api/v2/rooms/${id}/`),
     getTenants: (id) => api.get(`/api/v2/rooms/${id}/tenants/`),
     checkAvailability: (id) => api.get(`/api/v2/rooms/${id}/availability/`),
+    listCots: (id) => api.get(`/api/v2/rooms/${id}/cots/`),
+    addCot: (id, data) => api.post(`/api/v2/rooms/${id}/cots/`, data),
+  },
+
+  cots: {
+    get: (id) => api.get(`/api/v2/cots/${id}/`),
+    update: (id, data) => api.put(`/api/v2/cots/${id}/`, data),
+    patch: (id, data) => api.patch(`/api/v2/cots/${id}/`, data),
+    delete: (id) => api.delete(`/api/v2/cots/${id}/`),
+    checkAvailability: (id) => api.get(`/api/v2/cots/${id}/availability/`),
   },
   
   tenants: {

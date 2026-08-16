@@ -55,6 +55,7 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
   const [branches, setBranches] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [availableRooms, setAvailableRooms] = useState([]);
+  const [availableCots, setAvailableCots] = useState([]);
   const [credentials, setCredentials] = useState(null); // generated login credentials
   
   const { getUserRole } = useUser();
@@ -95,6 +96,7 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
     // Room Assignment
     branch: '',
     room: '',
+    cot: '',
     join_date: '',
     leave_date: '',
     rent_amount: '',
@@ -161,6 +163,7 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
             // room_detail.id is the room PK.
             branch: tenant.room_detail?.branch || '',
             room: tenant.room_detail?.id || '',
+            cot: tenant.cot_detail?.id || '',
             join_date: tenant.joining_date || '', // Map from backend field
             leave_date: tenant.vacating_date || '', // Map from backend field
             rent_amount: tenant.rent_amount || '',
@@ -188,6 +191,11 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
           const branchId = tenant.room_detail?.branch;
           if (branchId) {
             await fetchRooms(branchId);
+          }
+          // Load cots for the tenant's current room
+          const roomId = tenant.room_detail?.id;
+          if (roomId) {
+            await fetchCots(roomId, tenant.cot_detail?.id);
           }
         }
       };
@@ -229,6 +237,18 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
     }
   };
 
+  const fetchCots = async (roomId, currentCotId = null) => {
+    try {
+      const response = await enhancedAPI.rooms.listCots(roomId);
+      const cots = response.data || [];
+      // In edit mode, always include the tenant's current cot even if occupied
+      setAvailableCots(cots.filter(c => !c.is_occupied || c.id === currentCotId));
+    } catch (error) {
+      console.error('Error fetching cots:', error);
+      setAvailableCots([]);
+    }
+  };
+
   const handleInputChange = (field, value) => {
     setFormData(prev => {
       const newData = { ...prev, [field]: value };
@@ -245,14 +265,18 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
       if (field === 'branch' && value) {
         fetchRooms(value);
         newData.room = ''; // Reset room selection
+        newData.cot = '';  // Reset cot selection
+        setAvailableCots([]);
       }
       
-      // Auto-fill rent amount when room is selected
+      // Auto-fill rent amount when room is selected; fetch cots
       if (field === 'room' && value) {
         const selectedRoom = rooms.find(room => room.id === value);
         if (selectedRoom) {
           newData.rent_amount = selectedRoom.rent || '';
         }
+        newData.cot = '';
+        fetchCots(value);
       }
       
       return newData;
@@ -343,6 +367,7 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
         joining_date: formData.join_date,
         vacating_date: formData.leave_date || null,
         room: formData.room,
+        cot: formData.cot || null,
         id_proof_type: formData.id_proof_type,
         id_proof_number: formData.id_proof_number,
       };
@@ -379,7 +404,7 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
       current_address: '', current_city: '', current_state: '', current_pincode: '',
       same_as_permanent: false, emergency_contact_name: '', emergency_contact_phone: '',
       emergency_contact_relation: '', emergency_contact_address: '', guardian_name: '',
-      guardian_contact: '', guardian_relation: '', branch: '', room: '', join_date: '',
+      guardian_contact: '', guardian_relation: '', branch: '', room: '', cot: '', join_date: '',
       leave_date: '', rent_amount: '', security_deposit: '', id_proof_type: '',
       id_proof_number: '', has_police_verification: false, police_verification_date: '',
       has_medical_certificate: false, medical_certificate_date: '', reference_name: '',
@@ -387,6 +412,7 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
       agreed_to_rules: false, agreed_to_privacy: false, food_preferences: '',
       medical_conditions: '', special_requirements: '', notes: '', status: 'active'
     });
+    setAvailableCots([]);
     onClose();
   };
 
@@ -715,6 +741,26 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
                 </Select>
               </FormControl>
             </Grid>
+
+            {availableCots.length > 0 && (
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Assign Cot (Optional)</InputLabel>
+                  <Select
+                    value={formData.cot}
+                    label="Assign Cot (Optional)"
+                    onChange={(e) => handleInputChange('cot', e.target.value)}
+                  >
+                    <MenuItem value="">— No specific cot —</MenuItem>
+                    {availableCots.map((cot) => (
+                      <MenuItem key={cot.id} value={cot.id}>
+                        {cot.cot_code} — {cot.cot_type_display}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
             
             <Grid item xs={12}>
               <Divider sx={{ my: 2 }} />
@@ -923,6 +969,9 @@ function TenantForm({ open, onClose, onSave, tenant = null, isEdit = false }) {
               <Typography variant="subtitle1" gutterBottom>Room Assignment</Typography>
               <Typography><strong>Property:</strong> {branches.find(b => b.id === formData.branch)?.name}</Typography>
               <Typography><strong>Room:</strong> {rooms.find(r => r.id === formData.room)?.room_name}</Typography>
+              {formData.cot && availableCots.length > 0 && (
+                <Typography><strong>Cot:</strong> {availableCots.find(c => c.id === formData.cot)?.cot_code || formData.cot}</Typography>
+              )}
               <Typography><strong>Join Date:</strong> {formData.join_date}</Typography>
               <Typography><strong>Monthly Rent:</strong> ₹{formData.rent_amount}</Typography>
               {formData.security_deposit && (

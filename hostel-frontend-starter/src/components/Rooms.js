@@ -35,7 +35,10 @@ import {
   Badge,
   Avatar,
   Menu,
-  ButtonGroup
+  ButtonGroup,
+  Divider,
+  Stack,
+  LinearProgress,
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -69,6 +72,50 @@ function Rooms() {
   const [copyFromRoom, setCopyFromRoom] = useState(null);
   const [addMenuAnchor, setAddMenuAnchor] = useState(null);
   const [copySelectDialog, setCopySelectDialog] = useState(false);
+
+  // ── Cot management state ──────────────────────────────────────────────
+  const [savingCot, setSavingCot] = useState(false);
+  const [cotError, setCotError] = useState('');
+  const [newCotNumber, setNewCotNumber] = useState('');
+  const [newCotType, setNewCotType] = useState('S');
+
+  const handleAddCot = async () => {
+    const num = parseInt(newCotNumber, 10);
+    if (!num || num < 1) { setCotError('Enter a valid cot number.'); return; }
+    if (!selectedRoom) return;
+    setSavingCot(true);
+    setCotError('');
+    try {
+      await enhancedAPI.rooms.addCot(selectedRoom.id, { cot_number: num, cot_type: newCotType });
+      setNewCotNumber('');
+      setNewCotType('S');
+      // Refresh room details
+      const res = await enhancedAPI.rooms.get(selectedRoom.id);
+      setSelectedRoom(res.data);
+      await fetchRooms();
+    } catch (err) {
+      setCotError(err.response?.data?.non_field_errors?.[0] || err.response?.data?.detail || 'Failed to add cot.');
+    } finally {
+      setSavingCot(false);
+    }
+  };
+
+  const handleDeleteCot = async (cot) => {
+    if (cot.is_occupied) return;
+    if (!window.confirm(`Delete cot ${cot.cot_code}?`)) return;
+    setSavingCot(true);
+    setCotError('');
+    try {
+      await enhancedAPI.cots.delete(cot.id);
+      const res = await enhancedAPI.rooms.get(selectedRoom.id);
+      setSelectedRoom(res.data);
+      await fetchRooms();
+    } catch (err) {
+      setCotError(err.response?.data?.error || 'Failed to delete cot.');
+    } finally {
+      setSavingCot(false);
+    }
+  };
   
   const { getUserRole, hasAnyRole } = useUser();
   const userRole = getUserRole();
@@ -165,6 +212,9 @@ function Rooms() {
       setSelectedRoom(room);
       const response = await enhancedAPI.rooms.get(room.id);
       setSelectedRoom(response.data);
+      setNewCotNumber('');
+      setNewCotType('S');
+      setCotError('');
       setRoomDetailsDialog(true);
     } catch (error) {
       console.error('Error fetching room details:', error);
@@ -711,9 +761,53 @@ function Rooms() {
                 </Typography>
               </Grid>
 
-              {selectedRoom.cots && selectedRoom.cots.length > 0 && (
-                <Grid item xs={12}>
-                  <Typography variant="h6" gutterBottom>Cot Configuration</Typography>
+              <Grid item xs={12}>
+                <Divider sx={{ mb: 2 }} />
+                <Typography variant="h6" gutterBottom>
+                  Cot Management
+                  {selectedRoom.cots && selectedRoom.cots.length > 0 && (
+                    <Typography component="span" variant="caption" color="textSecondary" sx={{ ml: 1 }}>
+                      ({selectedRoom.cots.filter(c => !c.is_occupied).length} free / {selectedRoom.cots.length} total)
+                    </Typography>
+                  )}
+                </Typography>
+
+                {/* Add cot form */}
+                {savingCot && <LinearProgress sx={{ mb: 1 }} />}
+                {cotError && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setCotError('')}>{cotError}</Alert>}
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="flex-end" sx={{ mb: 2 }}>
+                  <TextField
+                    label="Cot Number"
+                    type="number"
+                    size="small"
+                    value={newCotNumber}
+                    onChange={e => setNewCotNumber(e.target.value)}
+                    inputProps={{ min: 1 }}
+                    sx={{ width: 130 }}
+                    disabled={savingCot}
+                  />
+                  <FormControl size="small" sx={{ minWidth: 160 }} disabled={savingCot}>
+                    <InputLabel>Type</InputLabel>
+                    <Select value={newCotType} label="Type" onChange={e => setNewCotType(e.target.value)}>
+                      <MenuItem value="S">Single</MenuItem>
+                      <MenuItem value="B">Bottom Bunk</MenuItem>
+                      <MenuItem value="T">Top Bunk</MenuItem>
+                      <MenuItem value="D">Double</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<AddIcon />}
+                    onClick={handleAddCot}
+                    disabled={savingCot || !newCotNumber}
+                  >
+                    Add Cot
+                  </Button>
+                </Stack>
+
+                {/* Existing cots */}
+                {selectedRoom.cots && selectedRoom.cots.length > 0 ? (
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                     {selectedRoom.cots.map((cot) => (
                       <Chip
@@ -721,22 +815,25 @@ function Rooms() {
                         label={
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{cot.cot_code}</span>
-                            <span style={{ fontSize: '0.7rem', color: 'inherit', opacity: 0.8 }}>— {cot.cot_type_display}</span>
+                            <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>— {cot.cot_type_display}</span>
                           </Box>
                         }
                         color={cot.is_occupied ? 'error' : 'success'}
                         variant={cot.is_occupied ? 'filled' : 'outlined'}
                         size="medium"
                         icon={cot.is_occupied ? <PeopleIcon /> : <BedIcon />}
+                        onDelete={cot.is_occupied ? undefined : () => handleDeleteCot(cot)}
                         sx={{ borderRadius: 2, py: 0.5 }}
+                        title={cot.is_occupied ? `Occupied by ${cot.current_tenant?.name || 'a tenant'}` : 'Available — click × to delete'}
                       />
                     ))}
                   </Box>
-                  <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
-                    {selectedRoom.cots.filter(c => !c.is_occupied).length} of {selectedRoom.cots.length} cots available
+                ) : (
+                  <Typography variant="body2" color="textSecondary">
+                    No cots configured yet. Add cots above to enable cot-level vacancy tracking.
                   </Typography>
-                </Grid>
-              )}
+                )}
+              </Grid>
 
               {selectedRoom.tenants && selectedRoom.tenants.length > 0 && (
                 <Grid item xs={12}>
