@@ -5,9 +5,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q, Count, F
 from django.contrib.auth.models import User
-from .models import Branch, Room, Tenant, RoomOccupancy, RentPayment, UserProfile, WardenAssignment
+from .models import Branch, Room, Cot, Tenant, RoomOccupancy, RentPayment, UserProfile, WardenAssignment
 from .serializers import (
-    BranchSerializer, RoomSerializer, TenantSerializer,
+    BranchSerializer, RoomSerializer, CotSerializer, TenantSerializer,
     RoomOccupancySerializer, RentPaymentSerializer, UserProfileSerializer,
     WardenAssignmentSerializer
 )
@@ -501,19 +501,121 @@ class EnhancedRoomViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['get'])
     def availability(self, request, pk=None):
-        """Check room availability"""
+        """Check room availability including cot-level breakdown"""
         room = self.get_object()
         current_occupancy = room.current_occupancy
-        available_slots = room.sharing_type - current_occupancy
-        
+        effective_capacity = room.effective_capacity
+        available_slots = max(effective_capacity - current_occupancy, 0) if effective_capacity else 0
+
+        cots = room.cots.filter(is_active=True).order_by('cot_number', 'cot_type')
+        cot_availability = [
+            {
+                'id': c.id,
+                'cot_code': c.cot_code,
+                'cot_type': c.cot_type,
+                'cot_type_display': c.get_cot_type_display(),
+                'is_occupied': c.is_occupied,
+            }
+            for c in cots
+        ]
+
         return Response({
             'room_name': room.room_name,
             'sharing_type': room.sharing_type,
+            'effective_capacity': effective_capacity,
             'current_occupancy': current_occupancy,
             'available_slots': available_slots,
             'is_available': available_slots > 0,
-            'is_full': room.is_full
+            'is_full': room.is_full,
+            'cots': cot_availability,
         })
+
+    @action(detail=True, methods=['get', 'post'])
+    def cots(self, request, pk=None):
+        """
+        GET  /api/v2/rooms/{id}/cots/  — list cots for the room
+        POST /api/v2/rooms/{id}/cots/  — add a new cot to the room
+        """
+        room = self.get_object()
+
+        if request.method == 'GET':
+            cots = room.cots.filter(is_active=True).order_by('cot_number', 'cot_type')
+            serializer = CotSerializer(cots, many=True)
+            return Response(serializer.data)
+
+        # POST — create a new cot
+        data = request.data.copy()
+        data['room'] = room.id
+        serializer = CotSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CotViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing individual cots.
+
+    GET/PUT/DELETE /api/v2/cots/{id}/
+    GET            /api/v2/cots/{id}/availability/
+    """
+    serializer_class = CotSerializer
+    permission_classes = [RoleBasedPermission]
+
+    def get_queryset(self):
+        user = self.request.user
+        if not hasattr(user, 'profile'):
+            return Cot.objects.none()
+        user_role = user.profile.role
+
+        if user_role == 'admin':
+            return Cot.objects.all().select_related('room', 'room__branch')
+        elif user_role == 'owner':
+            return Cot.objects.filter(
+                room__branch__owner=user
+            ).select_related('room', 'room__branch')
+        elif user_role == 'warden':
+            assigned_branches = WardenAssignment.objects.filter(
+                warden=user, is_active=True
+            ).values_list('branch', flat=True)
+            return Cot.objects.filter(
+                room__branch__in=assigned_branches
+            ).select_related('room', 'room__branch')
+        elif user_role == 'tenant':
+            return Cot.objects.filter(
+                room__branch__is_active=True,
+                is_active=True,
+            ).select_related('room', 'room__branch')
+        return Cot.objects.none()
+
+    @action(detail=True, methods=['get'])
+    def availability(self, request, pk=None):
+        """Check whether a specific cot is available."""
+        cot = self.get_object()
+        occupied = cot.is_occupied
+        tenant_info = None
+        if occupied and cot.current_tenant:
+            t = cot.current_tenant
+            tenant_info = {'id': t.id, 'name': t.name}
+        return Response({
+            'cot_code': cot.cot_code,
+            'cot_type': cot.cot_type,
+            'cot_type_display': cot.get_cot_type_display(),
+            'is_active': cot.is_active,
+            'is_occupied': occupied,
+            'current_tenant': tenant_info,
+        })
+
+    def destroy(self, request, *args, **kwargs):
+        """Prevent deletion of occupied cots."""
+        cot = self.get_object()
+        if cot.is_occupied:
+            return Response(
+                {'error': f"Cot '{cot.cot_code}' is currently occupied and cannot be deleted."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
 
 
 class EnhancedTenantViewSet(viewsets.ModelViewSet):
@@ -599,9 +701,14 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
         return queryset.select_related('user', 'room', 'room__branch')
     
     def perform_create(self, serializer):
-        tenant = serializer.save(created_by=self.request.user)
+        from django.db import transaction
+        with transaction.atomic():
+            # Lock the cot row if provided to prevent concurrent assignment
+            cot = serializer.validated_data.get('cot')
+            if cot:
+                Cot.objects.select_for_update().get(pk=cot.pk)
+            tenant = serializer.save(created_by=self.request.user)
         credentials = self._auto_create_tenant_user(tenant)
-        # Stash credentials on the tenant instance so create() can include them
         tenant._generated_credentials = credentials
 
     def _auto_create_tenant_user(self, tenant):
@@ -857,10 +964,12 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def checkout(self, request, pk=None):
         """
-        Check out a tenant by setting vacating_date.
+        Check out a tenant by setting vacating_date and releasing their cot.
         Body: { "vacating_date": "YYYY-MM-DD" }  (optional; defaults to today)
         """
         from datetime import date as date_type
+        from django.db import transaction
+
         tenant = self.get_object()
 
         if tenant.vacating_date:
@@ -886,8 +995,10 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
             vacating_date = date_type.today()
 
         try:
-            tenant.vacating_date = vacating_date
-            tenant.save()
+            with transaction.atomic():
+                tenant.vacating_date = vacating_date
+                tenant.cot = None  # Release cot assignment on checkout
+                tenant.save()
         except Exception as exc:
             logger.exception(
                 'checkout failed for tenant %s (id=%s): %s', tenant.name, tenant.pk, exc

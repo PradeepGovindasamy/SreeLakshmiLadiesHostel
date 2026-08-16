@@ -11,7 +11,8 @@ from .views_auth import (
 )
 from .views_enhanced import (
     EnhancedBranchViewSet, EnhancedRoomViewSet, EnhancedTenantViewSet,
-    EnhancedRoomOccupancyViewSet, EnhancedRentPaymentViewSet, FoodMenuViewSet
+    EnhancedRoomOccupancyViewSet, EnhancedRentPaymentViewSet, FoodMenuViewSet,
+    CotViewSet,
 )
 from .views_my import my_profile, my_rent_status, my_rent_ledger, my_payments
 from .views_kitchen import (
@@ -34,6 +35,7 @@ router.register(r'payments', RentPaymentViewSet)
 enhanced_router = DefaultRouter()
 enhanced_router.register(r'branches', EnhancedBranchViewSet, basename='enhanced-branches')
 enhanced_router.register(r'rooms', EnhancedRoomViewSet, basename='enhanced-rooms')
+enhanced_router.register(r'cots', CotViewSet, basename='enhanced-cots')
 enhanced_router.register(r'tenants', EnhancedTenantViewSet, basename='enhanced-tenants')
 enhanced_router.register(r'occupancy', EnhancedRoomOccupancyViewSet, basename='enhanced-occupancy')
 enhanced_router.register(r'payments', EnhancedRentPaymentViewSet, basename='enhanced-payments')

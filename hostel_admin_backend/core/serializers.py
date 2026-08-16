@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.db.models import Count, Q
 from .models import (
-    Branch, Room, Tenant, RoomOccupancy, RentPayment,
+    Branch, Room, Cot, Tenant, RoomOccupancy, RentPayment,
     UserProfile, WardenAssignment, TenantRequest, BranchPermission, FoodMenu
 )
 
@@ -166,6 +166,44 @@ class BranchSerializer(serializers.ModelSerializer):
         ]
 
 
+class CotSerializer(serializers.ModelSerializer):
+    """Serializer for individual cots within a room."""
+    cot_type_display = serializers.CharField(source='get_cot_type_display', read_only=True)
+    is_occupied = serializers.ReadOnlyField()
+    current_tenant = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Cot
+        fields = [
+            'id', 'room', 'cot_number', 'cot_type', 'cot_type_display',
+            'cot_code', 'is_active', 'is_occupied', 'current_tenant', 'created_at',
+        ]
+        read_only_fields = ['id', 'cot_code', 'cot_type_display', 'is_occupied', 'current_tenant', 'created_at']
+        extra_kwargs = {'room': {'write_only': True}}
+
+    def get_current_tenant(self, obj):
+        tenant = obj.current_tenant
+        if tenant is None:
+            return None
+        return {'id': tenant.id, 'name': tenant.name}
+
+    def validate(self, data):
+        room = data.get('room') or (self.instance.room if self.instance else None)
+        cot_number = data.get('cot_number', self.instance.cot_number if self.instance else None)
+        cot_type = data.get('cot_type', self.instance.cot_type if self.instance else None)
+
+        if room and cot_number and cot_type:
+            # Prevent duplicate cot definition for the same room/number/type
+            qs = Cot.objects.filter(room=room, cot_number=cot_number, cot_type=cot_type)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    f"Cot {cot_number}{cot_type} already exists in room '{room.room_name}'."
+                )
+        return data
+
+
 class RoomSerializer(serializers.ModelSerializer):
     """Enhanced room serializer with occupancy information"""
     branch_detail = BranchSerializer(source='branch', read_only=True)
@@ -174,6 +212,9 @@ class RoomSerializer(serializers.ModelSerializer):
     current_occupancy = serializers.ReadOnlyField()
     is_full = serializers.ReadOnlyField()
     status = serializers.ReadOnlyField()
+    effective_capacity = serializers.ReadOnlyField()
+    available_slots = serializers.SerializerMethodField()
+    cots = serializers.SerializerMethodField()
     
     class Meta:
         model = Room
@@ -181,18 +222,45 @@ class RoomSerializer(serializers.ModelSerializer):
             'id', 'room_name', 'sharing_type', 'sharing_type_display',
             'branch', 'branch_detail', 'branch_name', 'attached_bath', 'ac_room',
             'rent', 'floor_number', 'room_size_sqft', 'is_available',
-            'current_occupancy', 'is_full', 'status', 'created_at', 'updated_at'
+            'current_occupancy', 'is_full', 'status',
+            'effective_capacity', 'available_slots', 'cots',
+            'created_at', 'updated_at'
         ]
         read_only_fields = [
             'id', 'branch_detail', 'branch_name', 'sharing_type_display',
-            'current_occupancy', 'is_full', 'status', 'created_at', 'updated_at'
+            'current_occupancy', 'is_full', 'status',
+            'effective_capacity', 'available_slots', 'cots',
+            'created_at', 'updated_at'
         ]
-        # Remove write_only constraint from branch so it's included in read responses
     
     def get_sharing_type_display(self, obj):
         if obj.sharing_type:
             return f"{obj.sharing_type}-Sharing"
         return "Not specified"
+
+    def get_available_slots(self, obj):
+        cap = obj.effective_capacity
+        if not cap:
+            return 0
+        return max(cap - obj.current_occupancy, 0)
+
+    def get_cots(self, obj):
+        cots = obj.cots.filter(is_active=True).order_by('cot_number', 'cot_type')
+        return [
+            {
+                'id': c.id,
+                'cot_code': c.cot_code,
+                'cot_number': c.cot_number,
+                'cot_type': c.cot_type,
+                'cot_type_display': c.get_cot_type_display(),
+                'is_occupied': c.is_occupied,
+                'current_tenant': (
+                    {'id': c.current_tenant.id, 'name': c.current_tenant.name}
+                    if c.current_tenant else None
+                ),
+            }
+            for c in cots
+        ]
 
 
 class TenantSerializer(serializers.ModelSerializer):
@@ -203,13 +271,11 @@ class TenantSerializer(serializers.ModelSerializer):
     branch_name = serializers.CharField(source='room.branch.name', read_only=True)
     stay_type_display = serializers.CharField(source='get_stay_type_display', read_only=True)
     id_proof_type_display = serializers.CharField(source='get_id_proof_type_display', read_only=True)
-    # is_active kept for backward-compat; use status for new code
     is_active = serializers.SerializerMethodField()
-    # Canonical lifecycle status: ACTIVE | VACATED | PENDING
     status = serializers.SerializerMethodField()
-    # Current-month rent status: PAID | PARTIAL | PENDING | OVERDUE | UNKNOWN | null
     current_rent_status = serializers.SerializerMethodField()
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+    cot_detail = serializers.SerializerMethodField()
 
     class Meta:
         model = Tenant
@@ -218,6 +284,7 @@ class TenantSerializer(serializers.ModelSerializer):
             'emergency_contact_name', 'emergency_contact_phone',
             'stay_type', 'stay_type_display', 'joining_date', 'vacating_date',
             'room', 'room_detail', 'room_display', 'branch_name',
+            'cot', 'cot_detail',
             'id_proof_type', 'id_proof_type_display', 'id_proof_number',
             'father_name', 'father_aadhar', 'mother_name', 'mother_aadhar',
             'guardian_name', 'guardian_aadhar',
@@ -227,11 +294,13 @@ class TenantSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id', 'user', 'room_detail', 'room_display', 'branch_name',
             'stay_type_display', 'id_proof_type_display',
+            'cot_detail',
             'status', 'is_active', 'current_rent_status',
             'created_at', 'updated_at', 'created_by_name',
         ]
         extra_kwargs = {
             'room': {'write_only': True},
+            'cot': {'write_only': True, 'required': False, 'allow_null': True},
             'created_by': {'write_only': True},
         }
 
@@ -241,6 +310,17 @@ class TenantSerializer(serializers.ModelSerializer):
         elif obj.room:
             return obj.room.room_name
         return "Not Assigned"
+
+    def get_cot_detail(self, obj):
+        if not obj.cot_id:
+            return None
+        cot = obj.cot
+        return {
+            'id': cot.id,
+            'cot_code': cot.cot_code,
+            'cot_type': cot.cot_type,
+            'cot_type_display': cot.get_cot_type_display(),
+        }
 
     def get_status(self, obj):
         """
@@ -279,22 +359,51 @@ class TenantSerializer(serializers.ModelSerializer):
             return {'rent_status': 'UNKNOWN', 'agreed_rent': None, 'total_paid': 0, 'due': 0}
     
     def validate(self, data):
-        """Validate room capacity and assignment"""
+        """Validate room capacity, cot-room consistency, and duplicate cot assignment"""
         room = data.get('room')
-        if room and room.sharing_type:
-            # Count current tenants in this room (excluding this tenant if updating)
-            current_tenant_count = Tenant.objects.filter(
-                room=room, 
-                vacating_date__isnull=True
-            ).exclude(pk=self.instance.pk if self.instance else None).count()
-            
-            if current_tenant_count >= room.sharing_type:
-                raise serializers.ValidationError({
-                    "room": f"Room '{room.room_name}' is already full. "
-                           f"Maximum capacity: {room.sharing_type}, "
-                           f"Current occupants: {current_tenant_count}"
-                })
-        
+        cot = data.get('cot')
+
+        # ── 1. Room capacity check (uses effective_capacity) ──────────────────
+        if room:
+            cap = room.effective_capacity
+            if cap:
+                current_tenant_count = Tenant.objects.filter(
+                    room=room,
+                    vacating_date__isnull=True
+                ).exclude(pk=self.instance.pk if self.instance else None).count()
+
+                if current_tenant_count >= cap:
+                    raise serializers.ValidationError({
+                        "room": (
+                            f"Room '{room.room_name}' is already full. "
+                            f"Maximum capacity: {cap}, "
+                            f"Current occupants: {current_tenant_count}"
+                        )
+                    })
+
+        # ── 2. Cot must belong to the selected room ───────────────────────────
+        if cot and room and cot.room_id != room.id:
+            raise serializers.ValidationError({
+                "cot": (
+                    f"Cot '{cot.cot_code}' does not belong to room "
+                    f"'{room.room_name}'. Select a cot from the correct room."
+                )
+            })
+
+        # ── 3. Cot must not be occupied by another active tenant ──────────────
+        if cot:
+            vacating_date = data.get('vacating_date')
+            if not vacating_date:
+                qs = Tenant.objects.filter(
+                    cot=cot,
+                    joining_date__isnull=False,
+                    vacating_date__isnull=True,
+                ).exclude(pk=self.instance.pk if self.instance else None)
+                if qs.exists():
+                    raise serializers.ValidationError({
+                        "cot": f"Cot '{cot.cot_code}' is already occupied."
+                    })
+
         return data
 
 

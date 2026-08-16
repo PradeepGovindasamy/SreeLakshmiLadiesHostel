@@ -88,7 +88,19 @@ class Room(models.Model):
 
     def __str__(self):
         return f"{self.room_name} ({self.branch.name})"
-    
+
+    @property
+    def effective_capacity(self):
+        """
+        Capacity derived from active cots when configured; falls back to
+        sharing_type for rooms that have no cots defined yet.
+        This preserves full backward compatibility.
+        """
+        cot_count = self.cots.filter(is_active=True).count()
+        if cot_count > 0:
+            return cot_count
+        return self.sharing_type or 0
+
     @property
     def current_occupancy(self):
         """Get current number of tenants in this room who have joined"""
@@ -97,37 +109,94 @@ class Room(models.Model):
     @property
     def is_full(self):
         """Check if room is at maximum capacity"""
-        if not self.sharing_type:
+        cap = self.effective_capacity
+        if not cap:
             return False
-        return self.current_occupancy >= self.sharing_type
+        return self.current_occupancy >= cap
     
     @property
     def status(self):
         """Calculate room status based on availability and occupancy"""
         if not self.is_available:
             return 'maintenance'
-        elif self.current_occupancy >= self.sharing_type:
-            # Room is full (occupancy equals or exceeds capacity)
-            return 'occupied'
-        else:
-            # Room has vacant beds (occupancy is less than capacity)
+        cap = self.effective_capacity
+        if not cap:
             return 'available'
+        if self.current_occupancy >= cap:
+            return 'occupied'
+        return 'available'
     
     def update_availability(self):
         """Update room availability based on current occupancy"""
-        # If room is at maximum capacity, it should still be marked as available
-        # but the status property will show it as 'occupied'
-        # Only mark as unavailable for maintenance purposes
         pass
     
     def save(self, *args, **kwargs):
         """Override save to update availability based on occupancy"""
         super().save(*args, **kwargs)
-        # Update availability after saving
         self.update_availability()
     
     class Meta:
         unique_together = ['branch', 'room_name']
+
+class Cot(models.Model):
+    """
+    Represents a physical cot/bed within a room.
+
+    Cot codes are auto-generated from room_name + cot_number + cot_type:
+      G11 + 1 + U  →  G11-1U
+      G11 + 1 + L  →  G11-1L
+      G12 + 1 + S  →  G12-1S
+
+    Rooms without cots continue to use sharing_type for capacity (backward compatible).
+    """
+    COT_TYPE_CHOICES = [
+        ('S', 'Single'),
+        ('U', 'Upper Bunk'),
+        ('L', 'Lower Bunk'),
+    ]
+
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='cots')
+    cot_number = models.PositiveSmallIntegerField(
+        help_text='Cot number within the room, e.g. 1, 2, 3'
+    )
+    cot_type = models.CharField(max_length=1, choices=COT_TYPE_CHOICES)
+    cot_code = models.CharField(
+        max_length=20, unique=True, editable=False,
+        help_text='Auto-generated from room_name + cot_number + cot_type'
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def _generate_cot_code(self):
+        return f"{self.room.room_name}-{self.cot_number}{self.cot_type}"
+
+    def save(self, *args, **kwargs):
+        self.cot_code = self._generate_cot_code()
+        super().save(*args, **kwargs)
+
+    @property
+    def is_occupied(self):
+        """True when assigned to an active tenant (joined, not vacated)."""
+        return self.tenant_assignments.filter(
+            joining_date__isnull=False,
+            vacating_date__isnull=True
+        ).exists()
+
+    @property
+    def current_tenant(self):
+        """Return the active tenant assigned to this cot, or None."""
+        return self.tenant_assignments.filter(
+            joining_date__isnull=False,
+            vacating_date__isnull=True
+        ).first()
+
+    def __str__(self):
+        return self.cot_code
+
+    class Meta:
+        unique_together = ['room', 'cot_number', 'cot_type']
+        ordering = ['room', 'cot_number', 'cot_type']
+
 
 class Tenant(models.Model):
     STAY_TYPE_CHOICES = [
@@ -176,6 +245,13 @@ class Tenant(models.Model):
         null=True, blank=True,
         related_name='tenants'
     )
+    cot = models.ForeignKey(
+        'Cot',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='tenant_assignments',
+        help_text='Specific cot assigned to this tenant within the room'
+    )
     
     # ID proof information
     id_proof_type = models.CharField(max_length=20, choices=ID_PROOF_CHOICES, null=True, blank=True)
@@ -195,27 +271,48 @@ class Tenant(models.Model):
         return self.name
 
     def save(self, *args, **kwargs):
-        # Validate room capacity before saving
-        if self.room and self.room.sharing_type:
-            # Count current active tenants in this room (vacating_date is null)
+        from django.db import transaction
+
+        # ── 1. Validate cot belongs to the assigned room ───────────────────────
+        if self.cot_id and self.room_id:
+            if self.cot.room_id != self.room_id:
+                raise ValidationError(
+                    f"Cot '{self.cot.cot_code}' does not belong to room "
+                    f"'{self.room.room_name}'. Assign a cot from the correct room."
+                )
+
+        # ── 2. Validate room capacity (use effective_capacity) ─────────────────
+        if self.room and self.room.effective_capacity:
             current_count = Tenant.objects.filter(
                 room=self.room,
                 vacating_date__isnull=True
             ).exclude(pk=self.pk).count()
 
-            max_capacity = self.room.sharing_type
+            max_capacity = self.room.effective_capacity
 
             if current_count >= max_capacity:
-                raise ValidationError(f"Room '{self.room.room_name}' has reached its capacity of {max_capacity} tenants.")
+                raise ValidationError(
+                    f"Room '{self.room.room_name}' has reached its capacity of "
+                    f"{max_capacity} tenants."
+                )
 
-        # Save the tenant
+        # ── 3. Prevent duplicate active cot assignment ─────────────────────────
+        if self.cot_id and not self.vacating_date:
+            duplicate = Tenant.objects.filter(
+                cot=self.cot,
+                joining_date__isnull=False,
+                vacating_date__isnull=True,
+            ).exclude(pk=self.pk).first()
+            if duplicate:
+                raise ValidationError(
+                    f"Cot '{self.cot.cot_code}' is already occupied by "
+                    f"'{duplicate.name}'."
+                )
+
+        # ── 4. Save ────────────────────────────────────────────────────────────
         super().save(*args, **kwargs)
 
         # Normalise vacating_date to a date object after save.
-        # Django writes the correct type to the DB but leaves the Python
-        # attribute as whatever was assigned (e.g. a string from request.data).
-        # Comparing a str to a date raises TypeError in Python 3, so we
-        # refresh the single field from DB to guarantee the correct type.
         if self.pk and self.vacating_date is not None:
             self.vacating_date = (
                 Tenant.objects.filter(pk=self.pk)
@@ -223,9 +320,12 @@ class Tenant(models.Model):
                 .first()
             )
 
-        # RoomOccupancy logic
+        # ── 5. RoomOccupancy logic ─────────────────────────────────────────────
         if self.vacating_date and self.vacating_date <= timezone.now().date():
-            RoomOccupancy.objects.filter(tenant=self).delete()
+            # Close occupancy records with end_date instead of deleting them
+            RoomOccupancy.objects.filter(
+                tenant=self, end_date__isnull=True
+            ).update(end_date=self.vacating_date)
         elif not self.vacating_date and self.room:
             occupancy, created = RoomOccupancy.objects.get_or_create(
                 tenant=self,
