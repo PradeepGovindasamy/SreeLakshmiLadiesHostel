@@ -261,16 +261,16 @@ function Rooms() {
   // Calculate summary statistics based on beds rather than rooms
   const totalRooms = filteredRooms.length;
   
-  // Calculate bed statistics
-  const totalBeds = filteredRooms.reduce((sum, room) => sum + (room.sharing_type || 0), 0);
+  // Use effective_capacity for bed statistics
+  const totalBeds = filteredRooms.reduce((sum, room) => sum + (room.effective_capacity || room.sharing_type || 0), 0);
   const availableBeds = filteredRooms
     .filter(room => (room.status === 'available' || room.is_available))
-    .reduce((sum, room) => sum + Math.max(0, (room.sharing_type || 0) - (room.current_occupancy || 0)), 0);
+    .reduce((sum, room) => sum + Math.max(0, (room.effective_capacity || room.sharing_type || 0) - (room.current_occupancy || 0)), 0);
   const occupiedBeds = filteredRooms
     .reduce((sum, room) => sum + (room.current_occupancy || 0), 0);
   const maintenanceBeds = filteredRooms
     .filter(room => (room.status === 'maintenance' || !room.is_available))
-    .reduce((sum, room) => sum + (room.sharing_type || 0), 0);
+    .reduce((sum, room) => sum + (room.effective_capacity || room.sharing_type || 0), 0);
 
   if (loading) {
     return (
@@ -548,17 +548,20 @@ function Rooms() {
                     <TableCell>
                       <Box display="flex" alignItems="center">
                         <PeopleIcon fontSize="small" sx={{ mr: 1 }} />
-                        {room.sharing_type || 'N/A'}
+                        {room.effective_capacity || room.sharing_type || 'N/A'}
+                        {room.cots && room.cots.length > 0 && (
+                          <Chip label="Cots" size="small" color="info" variant="outlined" sx={{ ml: 1, fontSize: '0.65rem', height: 18 }} />
+                        )}
                       </Box>
                     </TableCell>
                     <TableCell>
                       <Box>
                         <Typography variant="body2">
-                          {room.current_occupancy || 0}/{room.sharing_type || 'N/A'}
+                          {room.current_occupancy || 0}/{room.effective_capacity || room.sharing_type || 'N/A'}
                         </Typography>
-                        {room.sharing_type && room.current_occupancy !== undefined && (
+                        {(room.effective_capacity || room.sharing_type) && room.current_occupancy !== undefined && (
                           <Typography variant="caption" color="textSecondary">
-                            {Math.round((room.current_occupancy / room.sharing_type) * 100)}% full
+                            {Math.round((room.current_occupancy / (room.effective_capacity || room.sharing_type)) * 100)}% full
                           </Typography>
                         )}
                       </Box>
@@ -660,8 +663,17 @@ function Rooms() {
                 <Typography><strong>Property:</strong> {selectedRoom.branch_name}</Typography>
                 <Typography><strong>Room Type:</strong> {formatRoomType(selectedRoom)}</Typography>
                 <Typography><strong>AC:</strong> {formatRoomAcLabel(selectedRoom)}</Typography>
-                <Typography><strong>Capacity:</strong> {selectedRoom.sharing_type || 'N/A'} people</Typography>
+                <Typography>
+                  <strong>Sharing Type:</strong> {selectedRoom.sharing_type || 'N/A'} sharing
+                </Typography>
+                <Typography>
+                  <strong>Effective Capacity:</strong> {selectedRoom.effective_capacity || selectedRoom.sharing_type || 'N/A'} beds
+                  {selectedRoom.cots && selectedRoom.cots.length > 0 && (
+                    <Chip label="cot-based" size="small" color="info" variant="outlined" sx={{ ml: 1, fontSize: '0.65rem', height: 18, verticalAlign: 'middle' }} />
+                  )}
+                </Typography>
                 <Typography><strong>Current Occupancy:</strong> {selectedRoom.current_occupancy || 0}</Typography>
+                <Typography><strong>Available Slots:</strong> {selectedRoom.available_slots ?? Math.max(0, (selectedRoom.effective_capacity || selectedRoom.sharing_type || 0) - (selectedRoom.current_occupancy || 0))}</Typography>
                 <Typography><strong>Rent:</strong> {selectedRoom.rent ? `₹${selectedRoom.rent}` : 'N/A'}</Typography>
                 <Typography><strong>Status:</strong> 
                   <Chip
@@ -698,6 +710,33 @@ function Rooms() {
                   {selectedRoom.updated_at ? new Date(selectedRoom.updated_at).toLocaleDateString() : 'N/A'}
                 </Typography>
               </Grid>
+
+              {selectedRoom.cots && selectedRoom.cots.length > 0 && (
+                <Grid item xs={12}>
+                  <Typography variant="h6" gutterBottom>Cot Configuration</Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {selectedRoom.cots.map((cot) => (
+                      <Chip
+                        key={cot.id}
+                        label={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{cot.cot_code}</span>
+                            <span style={{ fontSize: '0.7rem', color: 'inherit', opacity: 0.8 }}>— {cot.cot_type_display}</span>
+                          </Box>
+                        }
+                        color={cot.is_occupied ? 'error' : 'success'}
+                        variant={cot.is_occupied ? 'filled' : 'outlined'}
+                        size="medium"
+                        icon={cot.is_occupied ? <PeopleIcon /> : <BedIcon />}
+                        sx={{ borderRadius: 2, py: 0.5 }}
+                      />
+                    ))}
+                  </Box>
+                  <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                    {selectedRoom.cots.filter(c => !c.is_occupied).length} of {selectedRoom.cots.length} cots available
+                  </Typography>
+                </Grid>
+              )}
 
               {selectedRoom.tenants && selectedRoom.tenants.length > 0 && (
                 <Grid item xs={12}>
