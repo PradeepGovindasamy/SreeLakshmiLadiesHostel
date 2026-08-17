@@ -790,9 +790,8 @@ function Rooms() {
                     <InputLabel>Type</InputLabel>
                     <Select value={newCotType} label="Type" onChange={e => setNewCotType(e.target.value)}>
                       <MenuItem value="S">Single</MenuItem>
-                      <MenuItem value="B">Bottom Bunk</MenuItem>
-                      <MenuItem value="T">Top Bunk</MenuItem>
-                      <MenuItem value="D">Double</MenuItem>
+                      <MenuItem value="L">Lower Bunk</MenuItem>
+                      <MenuItem value="U">Upper Bunk</MenuItem>
                     </Select>
                   </FormControl>
                   <Button

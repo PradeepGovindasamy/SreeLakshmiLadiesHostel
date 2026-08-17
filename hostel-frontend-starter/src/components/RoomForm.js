@@ -30,7 +30,7 @@ import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { enhancedAPI } from '../api';
 import { useUser } from '../contexts/UserContext';
 
-const steps = ['Basic Information', 'Room Details', 'Pricing & Features', 'Review & Save', 'Cot Setup'];
+const steps = ['Basic Information', 'Room Details', 'Pricing & Features', 'Cot Setup', 'Review & Save'];
 
 const roomTypes = [
   { value: 'single', label: 'One Sharing' },
@@ -295,10 +295,16 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
     });
   };
 
-  const handleNext = () => {
-    if (validateStep(activeStep)) {
-      setActiveStep(prev => prev + 1);
+  const handleNext = async () => {
+    if (!validateStep(activeStep)) return;
+
+    // Step 2 (Pricing & Features) → step 3 (Cot Setup): save/create room first
+    if (activeStep === 2) {
+      await handleSaveRoom();
+      return; // handleSaveRoom advances the step on success
     }
+
+    setActiveStep(prev => prev + 1);
   };
 
   const handleBack = () => {
@@ -338,7 +344,7 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
     return true;
   };
 
-  const handleSubmit = async () => {
+  const handleSaveRoom = async () => {
     try {
       setLoading(true);
       setError('');
@@ -355,31 +361,39 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
         attached_bath: formData.has_attached_bathroom,
       };
 
-      console.log('Submitting room data:', submitData);
-
       let roomId = savedRoomId;
-      if (isEdit) {
+      if (savedRoomId) {
+        // Already created (or edit mode) — update
+        await enhancedAPI.rooms.update(savedRoomId, submitData);
+      } else if (isEdit) {
         await enhancedAPI.rooms.update(room.id, submitData);
         roomId = room.id;
+        setSavedRoomId(room.id);
       } else {
         const res = await enhancedAPI.rooms.create(submitData);
         roomId = res.data.id;
         setSavedRoomId(roomId);
       }
 
-      // Load cots for the saved room and proceed to Cot Setup step
+      // Load existing cots then advance to Cot Setup step
       try {
         const cotRes = await enhancedAPI.rooms.listCots(roomId);
         setRoomCots(cotRes.data || []);
       } catch (_) { setRoomCots([]); }
 
-      setActiveStep(4); // jump to Cot Setup
+      setActiveStep(3); // Cot Setup
     } catch (error) {
       console.error('Error saving room:', error);
       setError(error.response?.data?.message || 'Failed to save room');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Called on the final step (Review & Save) — room already saved, just close
+  const handleFinish = () => {
+    onSave();
+    handleClose();
   };
 
   const handleAddCot = async () => {
@@ -816,53 +830,8 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
         return (
           <Grid container spacing={3}>
             <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom>
-                Review Room Information
-              </Typography>
-            </Grid>
-            
-            <Grid item xs={12} md={6}>
-              <Typography variant="subtitle1" gutterBottom>Basic Information</Typography>
-              <Typography><strong>Room Number:</strong> {formData.room_number}</Typography>
-              <Typography><strong>Room Name:</strong> {formData.room_name || 'N/A'}</Typography>
-              <Typography><strong>Property:</strong> {branches.find(b => b.id === formData.branch)?.name}</Typography>
-              <Typography><strong>Type:</strong> {roomTypes.find(t => t.value === formData.room_type)?.label}</Typography>
-              <Typography><strong>Floor:</strong> {formData.floor}</Typography>
-              <Typography><strong>Status:</strong> {roomStatuses.find(s => s.value === formData.status)?.label}</Typography>
-            </Grid>
-            
-            <Grid item xs={12} md={6}>
-              <Typography variant="subtitle1" gutterBottom>Capacity & Pricing</Typography>
-              <Typography><strong>Capacity:</strong> {formData.capacity} people</Typography>
-              <Typography><strong>Current Occupancy:</strong> {formData.current_occupancy}</Typography>
-              <Typography><strong>Monthly Rent:</strong> ₹{formData.rent_amount}</Typography>
-              <Typography><strong>Security Deposit:</strong> ₹{formData.security_deposit || 'N/A'}</Typography>
-              {formData.area_sqft && <Typography><strong>Area:</strong> {formData.area_sqft} sq ft</Typography>}
-            </Grid>
-            
-            <Grid item xs={12}>
-              <Typography variant="subtitle1" gutterBottom>Features & Amenities</Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {formData.is_ac && <Chip label="AC" color="primary" size="small" />}
-                {formData.has_attached_bathroom && <Chip label="Attached Bathroom" color="primary" size="small" />}
-                {formData.has_balcony && <Chip label="Balcony" color="primary" size="small" />}
-                {formData.has_window && <Chip label="Window" color="primary" size="small" />}
-                {formData.has_fan && <Chip label="Fan" color="primary" size="small" />}
-                {formData.has_bed && <Chip label="Bed" color="primary" size="small" />}
-                {formData.has_study_table && <Chip label="Study Table" color="primary" size="small" />}
-                {formData.has_chair && <Chip label="Chair" color="primary" size="small" />}
-                {formData.has_wardrobe && <Chip label="Wardrobe" color="primary" size="small" />}
-              </Box>
-            </Grid>
-          </Grid>
-        );
-
-      case 4:
-        return (
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
               <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-                Room saved successfully. Optionally configure cots for cot-level vacancy tracking.
+                Room saved. Optionally configure cots for cot-level vacancy tracking.
                 Each resident can be assigned a specific cot when they check in.
               </Typography>
               <Typography variant="subtitle2" gutterBottom>
@@ -889,9 +858,8 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
                   <InputLabel>Type</InputLabel>
                   <Select value={newCotType} label="Type" onChange={e => setNewCotType(e.target.value)}>
                     <MenuItem value="S">Single</MenuItem>
-                    <MenuItem value="B">Bottom Bunk</MenuItem>
-                    <MenuItem value="T">Top Bunk</MenuItem>
-                    <MenuItem value="D">Double</MenuItem>
+                    <MenuItem value="L">Lower Bunk</MenuItem>
+                    <MenuItem value="U">Upper Bunk</MenuItem>
                   </Select>
                 </FormControl>
                 <Button
@@ -941,6 +909,52 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
           </Grid>
         );
 
+      case 4:
+        return (
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom>
+                Review Room Information
+              </Typography>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Typography variant="subtitle1" gutterBottom>Basic Information</Typography>
+              <Typography><strong>Room Number:</strong> {formData.room_number}</Typography>
+              <Typography><strong>Room Name:</strong> {formData.room_name || 'N/A'}</Typography>
+              <Typography><strong>Property:</strong> {branches.find(b => b.id === formData.branch)?.name}</Typography>
+              <Typography><strong>Type:</strong> {roomTypes.find(t => t.value === formData.room_type)?.label}</Typography>
+              <Typography><strong>Floor:</strong> {formData.floor}</Typography>
+              <Typography><strong>Status:</strong> {roomStatuses.find(s => s.value === formData.status)?.label}</Typography>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Typography variant="subtitle1" gutterBottom>Capacity & Pricing</Typography>
+              <Typography><strong>Capacity:</strong> {formData.capacity} people</Typography>
+              <Typography><strong>Monthly Rent:</strong> ₹{formData.rent_amount}</Typography>
+              {formData.area_sqft && <Typography><strong>Area:</strong> {formData.area_sqft} sq ft</Typography>}
+              {roomCots.length > 0 && (
+                <Typography><strong>Cots Configured:</strong> {roomCots.length}</Typography>
+              )}
+            </Grid>
+            
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" gutterBottom>Features & Amenities</Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {formData.is_ac && <Chip label="AC" color="primary" size="small" />}
+                {formData.has_attached_bathroom && <Chip label="Attached Bathroom" color="primary" size="small" />}
+                {formData.has_balcony && <Chip label="Balcony" color="primary" size="small" />}
+                {formData.has_window && <Chip label="Window" color="primary" size="small" />}
+                {formData.has_fan && <Chip label="Fan" color="primary" size="small" />}
+                {formData.has_bed && <Chip label="Bed" color="primary" size="small" />}
+                {formData.has_study_table && <Chip label="Study Table" color="primary" size="small" />}
+                {formData.has_chair && <Chip label="Chair" color="primary" size="small" />}
+                {formData.has_wardrobe && <Chip label="Wardrobe" color="primary" size="small" />}
+              </Box>
+            </Grid>
+          </Grid>
+        );
+
       default:
         return null;
     }
@@ -982,27 +996,24 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
       <DialogActions>
         <Button onClick={handleClose}>Cancel</Button>
         {activeStep < 4 && (
-          <Button onClick={handleBack} disabled={activeStep === 0}>
+          <Button onClick={handleBack} disabled={activeStep === 0 || loading}>
             Back
           </Button>
         )}
-        {activeStep === steps.length - 2 ? (
-          // Step 3: Review & Save — save the room and move to Cot Setup
-          <Button onClick={handleSubmit} variant="contained" disabled={loading}>
-            {loading ? 'Saving...' : (isEdit ? 'Update Room' : 'Save Room')}
+        {activeStep < 3 ? (
+          // Steps 0-2: Next (step 2 saves the room)
+          <Button onClick={handleNext} variant="contained" disabled={loading}>
+            {loading && activeStep === 2 ? 'Saving...' : 'Next'}
           </Button>
-        ) : activeStep === steps.length - 1 ? (
-          // Step 4: Cot Setup — Done closes the form
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => { onSave(); handleClose(); }}
-          >
-            Done
+        ) : activeStep === 3 ? (
+          // Step 3: Cot Setup → proceed to Review
+          <Button onClick={() => setActiveStep(4)} variant="contained">
+            Next →
           </Button>
         ) : (
-          <Button onClick={handleNext} variant="contained">
-            Next
+          // Step 4: Review & Save — room already saved
+          <Button variant="contained" color="success" onClick={handleFinish}>
+            {isEdit ? 'Done' : 'Finish'}
           </Button>
         )}
       </DialogActions>
