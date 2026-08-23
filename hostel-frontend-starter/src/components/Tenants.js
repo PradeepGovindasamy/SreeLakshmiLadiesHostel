@@ -48,7 +48,8 @@ import {
   CheckCircle as CheckCircleIcon,
   Warning as WarningIcon,
   ExitToApp as ExitToAppIcon,
-  Restore as RestoreIcon
+  Restore as RestoreIcon,
+  Hotel as CotIcon
 } from '@mui/icons-material';
 
 function Tenants() {
@@ -70,6 +71,12 @@ function Tenants() {
   const [checkoutDialog, setCheckoutDialog] = useState(false);
   const [checkoutTenant, setCheckoutTenant] = useState(null);
   const [vacatingDate, setVacatingDate] = useState('');
+
+  // Cot assignment dialog state
+  const [cotDialog, setCotDialog] = useState({ open: false, tenant: null });
+  const [cotDialogCots, setCotDialogCots] = useState([]);
+  const [cotDialogSelected, setCotDialogSelected] = useState('');
+  const [cotDialogSaving, setCotDialogSaving] = useState(false);
 
   const { getUserRole, hasAnyRole } = useUser();
   const userRole = getUserRole();
@@ -253,6 +260,38 @@ function Tenants() {
   const handleAdd = () => {
     setEditingTenant(null);
     setTenantFormOpen(true);
+  };
+
+  const handleOpenCotDialog = async (tenant) => {
+    setCotDialog({ open: true, tenant });
+    setCotDialogSelected(tenant.cot_detail?.id || '');
+    setCotDialogCots([]);
+    if (tenant.room_detail?.id) {
+      try {
+        const response = await enhancedAPI.rooms.listCots(tenant.room_detail.id);
+        const allCots = response.data || [];
+        // Include unoccupied cots or the tenant's own cot
+        setCotDialogCots(allCots.filter(c => !c.is_occupied || c.id === tenant.cot_detail?.id));
+      } catch (e) {
+        setCotDialogCots([]);
+      }
+    }
+  };
+
+  const handleCotDialogSave = async () => {
+    if (!cotDialog.tenant) return;
+    try {
+      setCotDialogSaving(true);
+      await enhancedAPI.tenants.patch(cotDialog.tenant.id, { cot: cotDialogSelected || null });
+      setAlert({ open: true, message: 'Cot assigned successfully!', severity: 'success' });
+      setCotDialog({ open: false, tenant: null });
+      await fetchTenants();
+    } catch (e) {
+      const msg = e.response?.data?.cot || e.response?.data?.error || 'Failed to assign cot.';
+      setAlert({ open: true, message: msg, severity: 'error' });
+    } finally {
+      setCotDialogSaving(false);
+    }
   };
 
   const handleTenantFormClose = () => {
@@ -505,7 +544,10 @@ function Tenants() {
                     </TableCell>
                     <TableCell>
                       {tenant.cot_detail ? (
-                        <Box>
+                        <Box
+                          onClick={() => canEdit && handleOpenCotDialog(tenant)}
+                          sx={{ cursor: canEdit ? 'pointer' : 'default' }}
+                        >
                           <Typography variant="body2" fontWeight={600}>
                             {tenant.cot_detail.cot_code}
                           </Typography>
@@ -514,9 +556,21 @@ function Tenants() {
                           </Typography>
                         </Box>
                       ) : (
-                        <Typography variant="caption" color="textSecondary">
-                          —
-                        </Typography>
+                        canEdit && tenant.room_detail?.id ? (
+                          <Tooltip title="Assign a cot to this resident">
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<CotIcon />}
+                              onClick={() => handleOpenCotDialog(tenant)}
+                              sx={{ fontSize: 11, py: 0.3 }}
+                            >
+                              Assign
+                            </Button>
+                          </Tooltip>
+                        ) : (
+                          <Typography variant="caption" color="textSecondary">—</Typography>
+                        )
                       )}
                     </TableCell>
                     <TableCell>
@@ -766,6 +820,50 @@ function Tenants() {
         tenant={editingTenant}
         isEdit={Boolean(editingTenant)}
       />
+
+      {/* Quick Cot Assign Dialog */}
+      <Dialog
+        open={cotDialog.open}
+        onClose={() => setCotDialog({ open: false, tenant: null })}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Assign Cot — {cotDialog.tenant?.name}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Room: {cotDialog.tenant?.room_display || 'N/A'}
+          </Typography>
+          <FormControl fullWidth>
+            <InputLabel>Cot</InputLabel>
+            <Select
+              value={cotDialogSelected}
+              label="Cot"
+              onChange={(e) => setCotDialogSelected(e.target.value)}
+            >
+              <MenuItem value="">— No specific cot —</MenuItem>
+              {cotDialogCots.length === 0 && (
+                <MenuItem disabled value="">No cots available for this room</MenuItem>
+              )}
+              {cotDialogCots.map((c) => (
+                <MenuItem key={c.id} value={c.id}>
+                  {c.cot_code} — {c.cot_type_display}
+                  {c.id === cotDialog.tenant?.cot_detail?.id && ' (current)'}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCotDialog({ open: false, tenant: null })}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleCotDialogSave}
+            disabled={cotDialogSaving}
+          >
+            {cotDialogSaving ? 'Saving…' : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

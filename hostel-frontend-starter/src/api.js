@@ -190,6 +190,7 @@ export const enhancedAPI = {
     get: (id) => api.get(`/api/v2/tenants/${id}/`),
     create: (data) => api.post('/api/v2/tenants/', data),
     update: (id, data) => api.put(`/api/v2/tenants/${id}/`, data),
+    patch:  (id, data) => api.patch(`/api/v2/tenants/${id}/`, data),
     delete: (id) => api.delete(`/api/v2/tenants/${id}/`),
     
     // Helper methods for specific status

@@ -684,7 +684,7 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
             return (
                 Tenant.objects
                 .filter(user=user)
-                .select_related('user', 'room', 'room__branch')
+                .select_related('user', 'room', 'room__branch', 'cot')
             )
 
         else:
@@ -714,7 +714,7 @@ class EnhancedTenantViewSet(viewsets.ModelViewSet):
                 | Q(email__icontains=search_param)
             )
 
-        return queryset.select_related('user', 'room', 'room__branch')
+        return queryset.select_related('user', 'room', 'room__branch', 'cot', 'cot__room')
     
     def perform_create(self, serializer):
         from django.db import transaction

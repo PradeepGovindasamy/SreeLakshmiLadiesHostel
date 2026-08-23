@@ -76,6 +76,7 @@ function SimpleTenants() {
   const [checkoutDialogOpen, setCheckoutDialogOpen] = useState(false);
   const [checkoutTenant, setCheckoutTenant] = useState(null);
   const [vacatingDate, setVacatingDate] = useState('');
+  const [availableCots, setAvailableCots] = useState([]);
   const [formData, setFormData] = useState({
     name: '',
     phone_number: '',
@@ -93,7 +94,8 @@ function SimpleTenants() {
     mother_name: '',
     mother_aadhar: '',
     guardian_name: '',
-    guardian_aadhar: ''
+    guardian_aadhar: '',
+    cot: ''
   });
 
   const { getUserRole, hasAnyRole } = useUser();
@@ -186,8 +188,10 @@ function SimpleTenants() {
       mother_name: '',
       mother_aadhar: '',
       guardian_name: '',
-      guardian_aadhar: ''
+      guardian_aadhar: '',
+      cot: ''
     });
+    setAvailableCots([]);
     setDialogOpen(true);
   };
 
@@ -211,9 +215,27 @@ function SimpleTenants() {
       mother_name: tenant.mother_name || '',
       mother_aadhar: tenant.mother_aadhar || '',
       guardian_name: tenant.guardian_name || '',
-      guardian_aadhar: tenant.guardian_aadhar || ''
+      guardian_aadhar: tenant.guardian_aadhar || '',
+      cot: tenant.cot_detail?.id || ''
     });
+    // Load cots for the tenant's room
+    const roomId = tenant.room_detail?.id || tenant.room;
+    if (roomId) {
+      fetchCotsForRoom(roomId, tenant.cot_detail?.id);
+    } else {
+      setAvailableCots([]);
+    }
     setDialogOpen(true);
+  };
+
+  const fetchCotsForRoom = async (roomId, currentCotId = null) => {
+    try {
+      const response = await enhancedAPI.rooms.listCots(roomId);
+      const cots = response.data || [];
+      setAvailableCots(cots.filter(c => !c.is_occupied || c.id === currentCotId));
+    } catch (e) {
+      setAvailableCots([]);
+    }
   };
 
   const handleDelete = async (tenant) => {
@@ -240,6 +262,7 @@ function SimpleTenants() {
       const submitData = {
         ...formData,
         stay_type: 'monthly',
+        cot: formData.cot || null,
         // Convert empty strings to null for date fields
         joining_date: formData.joining_date || null,
         vacating_date: formData.vacating_date || null
@@ -493,10 +516,11 @@ function SimpleTenants() {
         <TableContainer>
           <Table>
             <TableHead>
-              <TableRow>
+                <TableRow>
                 <TableCell><strong>Name</strong></TableCell>
                 <TableCell><strong>Contact</strong></TableCell>
                 <TableCell><strong>Room</strong></TableCell>
+                <TableCell><strong>Cot</strong></TableCell>
                 <TableCell><strong>Join Date</strong></TableCell>
                 <TableCell><strong>Status</strong></TableCell>
                 <TableCell align="right"><strong>Actions</strong></TableCell>
@@ -505,7 +529,7 @@ function SimpleTenants() {
             <TableBody>
               {filteredActiveTenants.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                  <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
                     <Typography variant="body2" color="textSecondary">
                       No active tenants found
                     </Typography>
@@ -552,6 +576,20 @@ function SimpleTenants() {
                           <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
                             {roomDisplay}
                           </Typography>
+                        </TableCell>
+                        <TableCell>
+                          {tenant.cot_detail ? (
+                            <Box>
+                              <Typography variant="body2" fontWeight={600}>
+                                {tenant.cot_detail.cot_code}
+                              </Typography>
+                              <Typography variant="caption" color="textSecondary">
+                                {tenant.cot_detail.cot_type_display}
+                              </Typography>
+                            </Box>
+                          ) : (
+                            <Typography variant="caption" color="textSecondary">—</Typography>
+                          )}
                         </TableCell>
                         <TableCell>
                           {tenant.joining_date ? new Date(tenant.joining_date).toLocaleDateString() : 'N/A'}
@@ -773,7 +811,7 @@ function SimpleTenants() {
       </Paper>
 
       {/* Add/Edit Dialog */}
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
+      <Dialog open={dialogOpen} onClose={() => { setDialogOpen(false); setAvailableCots([]); }} maxWidth="md" fullWidth>
         <DialogTitle>{editingTenant ? 'Edit Tenant' : 'Add New Tenant'}</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
@@ -856,7 +894,12 @@ function SimpleTenants() {
                 <Select
                   value={formData.room}
                   label="Room"
-                  onChange={(e) => setFormData({ ...formData, room: e.target.value })}
+                  onChange={(e) => {
+                    const roomId = e.target.value;
+                    setFormData({ ...formData, room: roomId, cot: '' });
+                    if (roomId) fetchCotsForRoom(roomId);
+                    else setAvailableCots([]);
+                  }}
                 >
                   {rooms.filter(r => r.is_available).map((room) => {
                     const branch = branches.find(b => b.id === room.branch);
@@ -869,6 +912,25 @@ function SimpleTenants() {
                 </Select>
               </FormControl>
             </Grid>
+            {availableCots.length > 0 && (
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Assign Cot (Optional)</InputLabel>
+                  <Select
+                    value={formData.cot}
+                    label="Assign Cot (Optional)"
+                    onChange={(e) => setFormData({ ...formData, cot: e.target.value })}
+                  >
+                    <MenuItem value="">— No specific cot —</MenuItem>
+                    {availableCots.map((cot) => (
+                      <MenuItem key={cot.id} value={cot.id}>
+                        {cot.cot_code} — {cot.cot_type_display}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
@@ -990,7 +1052,7 @@ function SimpleTenants() {
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => { setDialogOpen(false); setAvailableCots([]); }}>Cancel</Button>
           <Button onClick={handleSave} variant="contained">
             {editingTenant ? 'Update' : 'Add'} Tenant
           </Button>
