@@ -108,6 +108,7 @@ function TenantTable({
           <TableRow>
             <TableCell><strong>Name</strong></TableCell>
             <TableCell><strong>Room</strong></TableCell>
+            <TableCell><strong>Cot</strong></TableCell>
             <TableCell><strong>Contact</strong></TableCell>
             <TableCell><strong>Status</strong></TableCell>
             <TableCell><strong>Joined</strong></TableCell>
@@ -144,6 +145,21 @@ function TenantTable({
                   </Box>
                 ) : (
                   <Typography variant="body2" color="text.secondary">Not assigned</Typography>
+                )}
+              </TableCell>
+
+              <TableCell>
+                {tenant.cot_detail ? (
+                  <Box>
+                    <Typography variant="body2" fontWeight="medium">
+                      {tenant.cot_detail.cot_code}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {tenant.cot_detail.cot_type_display}
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">—</Typography>
                 )}
               </TableCell>
               
