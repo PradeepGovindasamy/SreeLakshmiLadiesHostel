@@ -3,7 +3,7 @@ import logging
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Q, Count, F
+from django.db.models import Q, Count, F, Prefetch
 from django.contrib.auth.models import User
 from .models import Branch, Room, Cot, Tenant, RoomOccupancy, RentPayment, UserProfile, WardenAssignment
 from .serializers import (
@@ -451,8 +451,24 @@ class EnhancedRoomViewSet(viewsets.ModelViewSet):
             ).select_related('branch')
         else:
             return Room.objects.none()
-        
-        # Apply query parameter filters
+
+        # Prefetch active cots + their active tenant assignments to avoid N+1 queries
+        active_cots_prefetch = Prefetch(
+            'cots',
+            queryset=Cot.objects.filter(is_active=True).prefetch_related(
+                Prefetch(
+                    'tenant_assignments',
+                    queryset=Tenant.objects.filter(
+                        joining_date__isnull=False,
+                        vacating_date__isnull=True
+                    ),
+                    to_attr='active_tenants',
+                )
+            ),
+            to_attr='active_cots',
+        )
+        queryset = queryset.prefetch_related(active_cots_prefetch)
+
         branch_id = self.request.query_params.get('branch', None)
         if branch_id and branch_id != 'all':
             queryset = queryset.filter(branch_id=branch_id)

@@ -19,17 +19,21 @@ import {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function effectiveCap(room) {
+  return room.effective_capacity || room.sharing_type || 0;
+}
+
 function getRoomStatus(room) {
   if (!room.is_available) return 'Maintenance';
   const occ = room.current_occupancy || 0;
-  const cap = room.sharing_type || 0;
+  const cap = effectiveCap(room);
   if (occ === 0) return 'Vacant';
   if (occ >= cap) return 'Occupied';
   return 'Partially Occupied';
 }
 
 function getBranchSummary(rooms) {
-  const totalBeds = rooms.reduce((s, r) => s + (r.sharing_type || 0), 0);
+  const totalBeds = rooms.reduce((s, r) => s + effectiveCap(r), 0);
   const occupiedBeds = rooms.reduce((s, r) => s + (r.current_occupancy || 0), 0);
   const counts = { Vacant: 0, 'Partially Occupied': 0, Occupied: 0, Maintenance: 0 };
   rooms.forEach(r => { counts[getRoomStatus(r)]++; });
@@ -38,29 +42,59 @@ function getBranchSummary(rooms) {
 
 // ─── RoomCard ────────────────────────────────────────────────────────────────
 
+function CotSlot({ cot }) {
+  const occupied = cot.is_occupied;
+  const typeShort = { S: 'Single', L: 'Lower', U: 'Upper' }[cot.cot_type] || cot.cot_type_display || '';
+  const borderColor = occupied ? '#fca5a5' : '#86efac';
+  const bgColor     = occupied ? '#fef2f2' : '#f0fdf4';
+  const textColor   = occupied ? '#b91c1c' : '#15803d';
+
+  return (
+    <Box
+      title={`${cot.cot_code} — ${cot.cot_type_display || ''} · ${occupied ? 'Occupied' : 'Free'}`}
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        px: 1,
+        py: 0.5,
+        borderRadius: 1.5,
+        border: `1.5px solid ${borderColor}`,
+        bgcolor: bgColor,
+        cursor: 'default',
+        minWidth: 40,
+      }}
+    >
+      <BedIcon sx={{ fontSize: 14, color: textColor }} />
+      <Typography sx={{ fontSize: 11, fontWeight: 700, lineHeight: 1.2, color: textColor }}>
+        Cot {cot.cot_number}
+      </Typography>
+      <Typography sx={{ fontSize: 9, lineHeight: 1.2, color: textColor, opacity: 0.8 }}>
+        {typeShort}
+      </Typography>
+    </Box>
+  );
+}
+
 function RoomCard({ room }) {
   const status = getRoomStatus(room);
   const meta = STATUS_COLORS[status === 'Partially Occupied' ? 'Partial' : status];
   const occ = room.current_occupancy || 0;
-  const cap = room.sharing_type || 0;
+  const cap = effectiveCap(room);
+  const hasCots = room.cots && room.cots.length > 0;
+  const freeCots = hasCots ? room.cots.filter(c => !c.is_occupied).length : 0;
 
   return (
     <SoftCard hover sx={{ height: '100%' }}>
       <Box sx={{ p: { xs: 1.75, sm: 2 } }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 1.5 }}>
+
+        {/* Room name + status */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 0.75 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-            <Box
-              sx={{
-                width: 28,
-                height: 28,
-                borderRadius: 1.5,
-                flexShrink: 0,
-                bgcolor: meta.bg,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
+            <Box sx={{
+              width: 28, height: 28, borderRadius: 1.5, flexShrink: 0,
+              bgcolor: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
               <MeetingRoomIcon sx={{ fontSize: 15, color: meta.dot }} />
             </Box>
             <Typography variant="body2" sx={{ fontWeight: 600, color: dash.text }} noWrap>
@@ -70,7 +104,30 @@ function RoomCard({ room }) {
           <StatusBadge status={status} />
         </Box>
 
-        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
+        {/* Cot slots — shown right under room name when configured */}
+        {hasCots && (
+          <Box sx={{ mb: 1.25 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+              <Typography variant="caption" sx={{ color: dash.textSecondary, fontWeight: 500 }}>
+                Cots
+              </Typography>
+              <Typography variant="caption" sx={{ color: dash.textSecondary }}>
+                {occ}/{cap} &nbsp;
+                <Typography component="span" variant="caption" sx={{ color: '#16a34a', fontWeight: 600 }}>
+                  {freeCots} free
+                </Typography>
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+              {room.cots.map(cot => (
+                <CotSlot key={cot.id} cot={cot} />
+              ))}
+            </Box>
+          </Box>
+        )}
+
+        {/* Meta row */}
+        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 1.25 }}>
           <Typography variant="caption" sx={{ color: dash.textSecondary }}>
             Floor {room.floor_number || 1}
           </Typography>
@@ -90,13 +147,12 @@ function RoomCard({ room }) {
           )}
         </Stack>
 
-        {cap > 0 && (
-          <Box sx={{ mb: 1.5 }}>
+        {/* Bed dots (only for rooms without cots) */}
+        {!hasCots && cap > 0 && (
+          <Box sx={{ mb: 1.25 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75 }}>
               <Typography variant="caption" sx={{ color: dash.textSecondary }}>Beds</Typography>
-              <Typography variant="caption" sx={{ color: dash.textSecondary }}>
-                {occ}/{cap}
-              </Typography>
+              <Typography variant="caption" sx={{ color: dash.textSecondary }}>{occ}/{cap}</Typography>
             </Box>
             <BedDots occupied={occ} total={cap} size={7} />
           </Box>
@@ -334,7 +390,7 @@ function RoomStatus() {
         grouped[k] = sortRoomsByBuildingHierarchy(grouped[k]);
       });
 
-      const totalBeds = data.reduce((s, r) => s + (r.sharing_type || 0), 0);
+      const totalBeds = data.reduce((s, r) => s + effectiveCap(r), 0);
       const occupiedBeds = data.reduce((s, r) => s + (r.current_occupancy || 0), 0);
       setTotals({ rooms: data.length, beds: totalBeds, occupied: occupiedBeds });
       setGroupedRooms(grouped);

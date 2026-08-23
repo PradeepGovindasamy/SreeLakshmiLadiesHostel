@@ -2,7 +2,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.db import models
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Prefetch
 from .models import (
     Branch, Room, Cot, Tenant, RoomOccupancy, RentPayment,
     UserProfile, WardenAssignment, TenantRequest, BranchPermission, FoodMenu
@@ -245,22 +245,44 @@ class RoomSerializer(serializers.ModelSerializer):
         return max(cap - obj.current_occupancy, 0)
 
     def get_cots(self, obj):
-        cots = obj.cots.filter(is_active=True).order_by('cot_number', 'cot_type')
-        return [
-            {
+        # Use prefetched active_cots if available (set by the viewset Prefetch),
+        # otherwise fall back to a direct queryset (e.g. when called from detail view)
+        cots = getattr(obj, 'active_cots', None)
+        if cots is None:
+            cots = obj.cots.filter(is_active=True).prefetch_related(
+                Prefetch(
+                    'tenant_assignments',
+                    queryset=Tenant.objects.filter(
+                        joining_date__isnull=False, vacating_date__isnull=True
+                    ),
+                    to_attr='active_tenants',
+                )
+            ).order_by('cot_number', 'cot_type')
+
+        result = []
+        for c in sorted(cots, key=lambda x: (x.cot_number, x.cot_type)):
+            # Use prefetched active_tenants if available, else fall back to property
+            if hasattr(c, 'active_tenants'):
+                active = c.active_tenants
+                is_occupied = len(active) > 0
+                current_tenant = active[0] if active else None
+            else:
+                is_occupied = c.is_occupied
+                current_tenant = c.current_tenant
+
+            result.append({
                 'id': c.id,
                 'cot_code': c.cot_code,
                 'cot_number': c.cot_number,
                 'cot_type': c.cot_type,
                 'cot_type_display': c.get_cot_type_display(),
-                'is_occupied': c.is_occupied,
+                'is_occupied': is_occupied,
                 'current_tenant': (
-                    {'id': c.current_tenant.id, 'name': c.current_tenant.name}
-                    if c.current_tenant else None
+                    {'id': current_tenant.id, 'name': current_tenant.name}
+                    if current_tenant else None
                 ),
-            }
-            for c in cots
-        ]
+            })
+        return result
 
 
 class TenantSerializer(serializers.ModelSerializer):
