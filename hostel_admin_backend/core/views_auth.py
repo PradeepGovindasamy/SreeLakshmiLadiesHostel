@@ -261,11 +261,22 @@ def user_profile_view(request):
         return Response(serializer.data)
     
     elif request.method in ['PUT', 'PATCH']:
-        serializer = UserProfileSerializer(
-            profile, 
-            data=request.data, 
-            partial=(request.method == 'PATCH')
-        )
+        # Update User model fields (first_name, last_name)
+        user = request.user
+        user_fields_changed = []
+        for field in ('first_name', 'last_name'):
+            if field in request.data:
+                setattr(user, field, request.data[field])
+                user_fields_changed.append(field)
+        if user_fields_changed:
+            user.save(update_fields=user_fields_changed)
+
+        # Accept 'phone' as alias for 'phone_number'
+        profile_data = request.data.copy()
+        if 'phone' in profile_data and 'phone_number' not in profile_data:
+            profile_data['phone_number'] = profile_data.pop('phone')
+
+        serializer = UserProfileSerializer(profile, data=profile_data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)

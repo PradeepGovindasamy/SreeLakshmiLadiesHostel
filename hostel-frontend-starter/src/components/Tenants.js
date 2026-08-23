@@ -448,6 +448,7 @@ function Tenants() {
                 <TableCell>Tenant</TableCell>
                 <TableCell>Contact Info</TableCell>
                 <TableCell>Property & Room</TableCell>
+                <TableCell>Cot</TableCell>
                 <TableCell>Occupancy Period</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Rent Status</TableCell>
@@ -501,6 +502,22 @@ function Tenants() {
                           {tenant.room_display || 'Room: Not Assigned'}
                         </Typography>
                       </Box>
+                    </TableCell>
+                    <TableCell>
+                      {tenant.cot_detail ? (
+                        <Box>
+                          <Typography variant="body2" fontWeight={600}>
+                            {tenant.cot_detail.cot_code}
+                          </Typography>
+                          <Typography variant="caption" color="textSecondary">
+                            {tenant.cot_detail.cot_type_display}
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Typography variant="caption" color="textSecondary">
+                          —
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Box>

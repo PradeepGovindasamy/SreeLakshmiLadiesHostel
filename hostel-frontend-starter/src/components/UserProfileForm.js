@@ -50,7 +50,7 @@ function UserProfileForm({ open, onClose, onUpdate }) {
   const [success, setSuccess] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   
-  const { user, updateProfile: updateUserProfile } = useUser();
+  const { user, updateProfile: updateUserProfile, refreshProfile } = useUser();
 
   const [profileData, setProfileData] = useState({
     // Basic Information
@@ -115,10 +115,10 @@ function UserProfileForm({ open, onClose, onUpdate }) {
       const userData = response.data;
       
       setProfileData({
-        first_name: userData.first_name || '',
-        last_name: userData.last_name || '',
-        email: userData.email || '',
-        phone: userData.phone || '',
+        first_name: userData.user?.first_name || '',
+        last_name: userData.user?.last_name || '',
+        email: userData.user?.email || '',
+        phone: userData.phone_number || '',
         date_of_birth: userData.date_of_birth || '',
         gender: userData.gender || '',
         bio: userData.bio || '',
@@ -213,38 +213,45 @@ function UserProfileForm({ open, onClose, onUpdate }) {
         });
         setSuccess('Password updated successfully');
       } else {
-        const updateData = {};
-        
         if (section === 'basic') {
-          updateData.first_name = profileData.first_name;
-          updateData.last_name = profileData.last_name;
-          updateData.phone = profileData.phone;
-          updateData.date_of_birth = profileData.date_of_birth;
-          updateData.gender = profileData.gender;
-          updateData.bio = profileData.bio;
-        } else if (section === 'contact') {
-          updateData.address = profileData.address;
-          updateData.city = profileData.city;
-          updateData.state = profileData.state;
-          updateData.pincode = profileData.pincode;
-          updateData.emergency_contact = profileData.emergency_contact;
-          updateData.emergency_relation = profileData.emergency_relation;
-        } else if (section === 'notifications') {
-          updateData.email_notifications = profileData.email_notifications;
-          updateData.sms_notifications = profileData.sms_notifications;
-          updateData.marketing_emails = profileData.marketing_emails;
-          updateData.security_alerts = profileData.security_alerts;
-        } else if (section === 'privacy') {
-          updateData.profile_visibility = profileData.profile_visibility;
-          updateData.show_email = profileData.show_email;
-          updateData.show_phone = profileData.show_phone;
-          updateData.language = profileData.language;
-          updateData.timezone = profileData.timezone;
-          updateData.theme = profileData.theme;
-        }
+          // Update Django User model (first_name, last_name)
+          if (user?.id) {
+            await userAPI.update(user.id, {
+              first_name: profileData.first_name,
+              last_name: profileData.last_name,
+            });
+          }
+          // Update UserProfile model (phone_number)
+          const profileUpdateData = { phone_number: profileData.phone };
+          const response = await userAPI.updateProfile(profileUpdateData);
+          await updateUserProfile(response.data);
+        } else {
+          const updateData = {};
 
-        const response = await userAPI.updateProfile(updateData);
-        await updateUserProfile(response.data);
+          if (section === 'contact') {
+            updateData.address = profileData.address;
+            updateData.city = profileData.city;
+            updateData.state = profileData.state;
+            updateData.pincode = profileData.pincode;
+            updateData.emergency_contact = profileData.emergency_contact;
+            updateData.emergency_relation = profileData.emergency_relation;
+          } else if (section === 'notifications') {
+            updateData.email_notifications = profileData.email_notifications;
+            updateData.sms_notifications = profileData.sms_notifications;
+            updateData.marketing_emails = profileData.marketing_emails;
+            updateData.security_alerts = profileData.security_alerts;
+          } else if (section === 'privacy') {
+            updateData.profile_visibility = profileData.profile_visibility;
+            updateData.show_email = profileData.show_email;
+            updateData.show_phone = profileData.show_phone;
+            updateData.language = profileData.language;
+            updateData.timezone = profileData.timezone;
+            updateData.theme = profileData.theme;
+          }
+
+          const response = await userAPI.updateProfile(updateData);
+          await updateUserProfile(response.data);
+        }
         setSuccess('Profile updated successfully');
       }
 

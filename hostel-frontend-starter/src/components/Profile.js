@@ -30,7 +30,7 @@ import UserProfileForm from './UserProfileForm';
 
 function Profile() {
   const [profileFormOpen, setProfileFormOpen] = useState(false);
-  const { user, getUserRole } = useUser();
+  const { user, getUserRole, profile: userProfile } = useUser();
   const userRole = getUserRole();
 
   const handleOpenProfileForm = () => {
@@ -173,7 +173,7 @@ function Profile() {
                   </ListItemIcon>
                   <ListItemText
                     primary="Phone"
-                    secondary={user.phone || 'Not provided'}
+                    secondary={userProfile?.phone_number || user?.phone || 'Not provided'}
                   />
                 </ListItem>
                 <ListItem>
