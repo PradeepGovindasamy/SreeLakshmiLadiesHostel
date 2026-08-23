@@ -161,8 +161,8 @@ class Cot(models.Model):
     )
     cot_type = models.CharField(max_length=1, choices=COT_TYPE_CHOICES)
     cot_code = models.CharField(
-        max_length=20, unique=True, editable=False,
-        help_text='Auto-generated from room_name + cot_number + cot_type'
+        max_length=20, editable=False,
+        help_text='Auto-generated from room_name + cot_number + cot_type. Unique within a room.'
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
