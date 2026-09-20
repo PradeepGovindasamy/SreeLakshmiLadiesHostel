@@ -25,6 +25,16 @@ import {
 import { Add as AddIcon, People as PeopleIcon } from '@mui/icons-material';
 import { RESIDENT } from '../../config/labels';
 
+// Rent status filter options
+const RENT_STATUS_OPTIONS = [
+  { value: 'all',     label: 'All Rent Statuses' },
+  { value: 'OVERDUE', label: '🔴 Overdue' },
+  { value: 'PARTIAL', label: '🟡 Partial' },
+  { value: 'PENDING', label: '⏳ Pending' },
+  { value: 'PAID',    label: '✅ Paid' },
+  { value: 'UNKNOWN', label: '— No Rent Set' },
+];
+
 /**
  * Active Tenants Section
  * Displays currently active tenants with full CRUD operations
@@ -51,6 +61,7 @@ function ActiveTenantsSection() {
   const [checkoutDialog, setCheckoutDialog] = useState(false);
   const [checkoutTenant, setCheckoutTenant] = useState(null);
   const [vacatingDate, setVacatingDate] = useState('');
+  const [rentStatusFilter, setRentStatusFilter] = useState('all');
 
   const { hasAnyRole } = useUser();
 
@@ -233,6 +244,21 @@ function ActiveTenantsSection() {
   const canDelete = hasAnyRole(['owner', 'admin']);
   const canAdd = hasAnyRole(['owner', 'admin', 'warden']);
 
+  // ── Rent status summary counts (computed from fetched data) ──────────────
+  const rentSummary = tenants.reduce(
+    (acc, t) => {
+      const rs = t.current_rent_status?.rent_status || 'UNKNOWN';
+      acc[rs] = (acc[rs] || 0) + 1;
+      return acc;
+    },
+    {}
+  );
+
+  // ── Client-side rent status filter ──────────────────────────────────────
+  const displayedTenants = rentStatusFilter === 'all'
+    ? tenants
+    : tenants.filter(t => (t.current_rent_status?.rent_status || 'UNKNOWN') === rentStatusFilter);
+
   return (
     <Paper elevation={2} sx={{ p: 3, mb: 4 }}>
       {/* Section Header */}
@@ -242,9 +268,52 @@ function ActiveTenantsSection() {
           {RESIDENT.activeSection}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-          ({loading ? '...' : tenants.length})
+          ({loading ? '...' : displayedTenants.length}{rentStatusFilter !== 'all' ? ` of ${tenants.length}` : ''})
         </Typography>
       </Box>
+
+      {/* ── Rent Status Summary Bar ─────────────────────────────────────── */}
+      {!loading && tenants.length > 0 && (
+        <Box sx={{ display: 'flex', gap: 1.5, mb: 2.5, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mr: 0.5 }}>
+            Rent Summary:
+          </Typography>
+          {[
+            { key: 'OVERDUE',  label: 'Overdue',  color: 'error',   icon: '🔴' },
+            { key: 'PARTIAL',  label: 'Partial',  color: 'warning', icon: '🟡' },
+            { key: 'PENDING',  label: 'Pending',  color: 'default', icon: '⏳' },
+            { key: 'PAID',     label: 'Paid',     color: 'success', icon: '✅' },
+            { key: 'UNKNOWN',  label: 'No Rent Set', color: 'default', icon: '—' },
+          ].filter(s => rentSummary[s.key] > 0).map(({ key, label, color, icon }) => (
+            <Alert
+              key={key}
+              severity={color === 'error' ? 'error' : color === 'warning' ? 'warning' : color === 'success' ? 'success' : 'info'}
+              icon={false}
+              onClick={() => setRentStatusFilter(rentStatusFilter === key ? 'all' : key)}
+              sx={{
+                py: 0.25,
+                px: 1.25,
+                cursor: 'pointer',
+                border: rentStatusFilter === key ? '2px solid currentColor' : '1px solid transparent',
+                borderRadius: 2,
+                fontWeight: rentStatusFilter === key ? 700 : 400,
+                '& .MuiAlert-message': { fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 0.5 },
+              }}
+            >
+              {icon} {rentSummary[key]} {label}
+            </Alert>
+          ))}
+          {rentStatusFilter !== 'all' && (
+            <Typography
+              variant="caption"
+              sx={{ cursor: 'pointer', color: 'primary.main', textDecoration: 'underline', ml: 0.5 }}
+              onClick={() => setRentStatusFilter('all')}
+            >
+              Clear filter
+            </Typography>
+          )}
+        </Box>
+      )}
 
       {/* Filters and Actions - EXISTING filters preserved exactly */}
       <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
@@ -291,6 +360,21 @@ function ActiveTenantsSection() {
           </FormControl>
         )}
 
+        <FormControl size="small" sx={{ minWidth: '170px' }}>
+          <InputLabel>Rent Status</InputLabel>
+          <Select
+            value={rentStatusFilter}
+            onChange={(e) => setRentStatusFilter(e.target.value)}
+            label="Rent Status"
+          >
+            {RENT_STATUS_OPTIONS.map(opt => (
+              <MenuItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
         {canAdd && (
           <Button
             variant="contained"
@@ -309,7 +393,7 @@ function ActiveTenantsSection() {
         </Box>
       ) : (
         <TenantTable
-          tenants={tenants}
+          tenants={displayedTenants}
           loading={loading}
           readOnly={false}
           showVacatedDate={false}
