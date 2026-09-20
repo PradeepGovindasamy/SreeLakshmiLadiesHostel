@@ -379,11 +379,16 @@ function Branches() {
                       </Tooltip>
                       {canEdit && (
                         <>
-                          <Tooltip title="Assign Manager">
-                            <IconButton color="secondary" size="small" onClick={() => handleOpenManagerDialog(branch)}>
-                              <AssignIcon />
-                            </IconButton>
-                          </Tooltip>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="warning"
+                            startIcon={<AssignIcon />}
+                            onClick={() => handleOpenManagerDialog(branch)}
+                            sx={{ mr: 0.5, textTransform: 'none', whiteSpace: 'nowrap' }}
+                          >
+                            Assign Warden
+                          </Button>
                           <Tooltip title="Edit">
                             <IconButton color="primary" size="small" onClick={() => handleEdit(branch)}>
                               <EditIcon />
@@ -508,21 +513,24 @@ function Branches() {
         isEdit={Boolean(editingProperty)}
       />
 
-      {/* Manager Assignment Dialog */}
+      {/* Warden Assignment Dialog */}
       <Dialog open={managerDialog} onClose={() => setManagerDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
-          Manage Assigned Managers — {managerBranch?.name}
+          Assign Wardens — {managerBranch?.name}
         </DialogTitle>
         <DialogContent dividers>
           {managerError && <Alert severity="error" sx={{ mb: 2 }}>{managerError}</Alert>}
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Wardens assigned here can manage residents, rooms, and payments for this property based on the permissions you enable below.
+          </Alert>
 
-          {/* Current managers list */}
-          <Typography variant="subtitle2" gutterBottom>Current Managers</Typography>
+          {/* Current wardens list */}
+          <Typography variant="subtitle2" gutterBottom>Assigned Wardens</Typography>
           {managerLoading ? (
             <CircularProgress size={24} />
           ) : currentManagers.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              No managers assigned yet.
+              No wardens assigned yet.
             </Typography>
           ) : (
             <List dense sx={{ mb: 2, border: '1px solid #e2e8f0', borderRadius: 2 }}>
@@ -532,10 +540,10 @@ function Branches() {
                     primary={a.warden_name || a.warden?.username}
                     secondary={[
                       a.can_manage_rooms && 'Rooms',
-                      a.can_manage_tenants && 'Tenants',
+                      a.can_manage_tenants && 'Residents',
                       a.can_view_payments && 'View Payments',
                       a.can_collect_payments && 'Collect Payments',
-                    ].filter(Boolean).join(' · ')}
+                    ].filter(Boolean).join(' · ') || 'No permissions enabled'}
                   />
                   <ListItemSecondaryAction>
                     <Tooltip title="Remove">
@@ -551,15 +559,15 @@ function Branches() {
 
           <Divider sx={{ my: 2 }} />
 
-          {/* Assign new manager */}
-          <Typography variant="subtitle2" gutterBottom>Assign New Manager</Typography>
+          {/* Assign new warden */}
+          <Typography variant="subtitle2" gutterBottom>Assign New Warden</Typography>
           <Grid container spacing={2}>
             <Grid item xs={12}>
               <FormControl fullWidth size="small">
-                <InputLabel>Select Manager (Warden)</InputLabel>
+                <InputLabel>Select Warden</InputLabel>
                 <Select
                   value={managerForm.warden_id}
-                  label="Select Manager (Warden)"
+                  label="Select Warden"
                   onChange={(e) => setManagerForm({ ...managerForm, warden_id: e.target.value })}
                 >
                   {availableWardens.map((w) => (
@@ -578,7 +586,7 @@ function Branches() {
               <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
                 {[
                   { field: 'can_manage_rooms', label: 'Manage Rooms' },
-                  { field: 'can_manage_tenants', label: 'Manage Tenants' },
+                  { field: 'can_manage_tenants', label: 'Manage Residents' },
                   { field: 'can_view_payments', label: 'View Payments' },
                   { field: 'can_collect_payments', label: 'Collect Payments' },
                 ].map(({ field, label }) => (
@@ -606,7 +614,7 @@ function Branches() {
             disabled={managerLoading || !managerForm.warden_id}
             startIcon={managerLoading ? <CircularProgress size={16} /> : <AssignIcon />}
           >
-            Assign Manager
+            Assign Warden
           </Button>
         </DialogActions>
       </Dialog>

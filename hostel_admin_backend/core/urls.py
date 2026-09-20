@@ -19,6 +19,7 @@ from .views_kitchen import (
     FoodMenuItemViewSet, MenuIngredientViewSet,
     TenantAvailabilityViewSet, MealCountViewSet,
 )
+from .views_warden_assignment import sync_user_warden_assignments
 
 # Create routers for different API versions
 router = DefaultRouter()
@@ -71,6 +72,7 @@ urlpatterns = [
     # User creation endpoints (multiple approaches to ensure it works)
     path('users/create_with_profile/', UserManagementViewSet.as_view({'post': 'create_with_profile'}), name='create-user-with-profile'),
     path('users/create/', create_user_with_profile_standalone, name='create-user-standalone'),
+    path('users/<int:user_id>/warden-assignments/', sync_user_warden_assignments, name='sync-user-warden-assignments'),
     
     # User management
     path('', include(user_router.urls)),

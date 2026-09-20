@@ -1,5 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { userAPI, enhancedAPI } from '../api';
+import { userAPI, enhancedAPI, managerAPI } from '../api';
+
+const DEFAULT_WARDEN_PERMISSIONS = {
+  can_manage_rooms: true,
+  can_manage_tenants: true,
+  can_view_payments: true,
+  can_collect_payments: false,
+};
+
+async function assignWardenToProperties(wardenId, branchIds) {
+  if (!wardenId || !branchIds?.length) return;
+  await Promise.all(
+    branchIds.map((branchId) =>
+      managerAPI.assign(branchId, {
+        warden_id: wardenId,
+        ...DEFAULT_WARDEN_PERMISSIONS,
+      }),
+    ),
+  );
+}
 import { useUser } from '../contexts/UserContext';
 import { RESIDENT } from '../config/labels';
 import {
@@ -36,7 +55,8 @@ import {
   Step,
   StepLabel,
   FormControlLabel,
-  Checkbox
+  Checkbox,
+  FormHelperText
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -226,7 +246,11 @@ function UserManagement() {
         }
       };
 
-      await userAPI.createUserWithProfile(userData);
+      const createRes = await userAPI.createUserWithProfile(userData);
+      if (formData.role === 'warden' && formData.assigned_branches.length > 0) {
+        const wardenId = createRes.data?.user?.id;
+        await assignWardenToProperties(wardenId, formData.assigned_branches);
+      }
       setAlert({ open: true, message: 'User created successfully!', severity: 'success' });
       setCreateDialog(false);
       resetForm();
@@ -536,7 +560,7 @@ function UserManagement() {
                 </Select>
               </FormControl>
             </Grid>
-            {(formData.role === 'owner' || formData.role === 'warden') && (
+            {formData.role === 'warden' && (
               <Grid item xs={12}>
                 <FormControl fullWidth>
                   <InputLabel>Assigned Properties</InputLabel>
@@ -562,6 +586,10 @@ function UserManagement() {
                       </MenuItem>
                     ))}
                   </Select>
+                  <FormHelperText>
+                    Wardens can only manage residents and rooms for their assigned properties.
+                    Use Properties → Assign Warden to set detailed permissions per property.
+                  </FormHelperText>
                 </FormControl>
               </Grid>
             )}
@@ -903,6 +931,7 @@ function UserManagement() {
                     <TableRow>
                       <TableCell>User</TableCell>
                       <TableCell>Contact Info</TableCell>
+                      <TableCell>Assigned Properties</TableCell>
                       <TableCell>Role</TableCell>
                       <TableCell>Status</TableCell>
                       <TableCell>Created</TableCell>
@@ -939,6 +968,25 @@ function UserManagement() {
                               </Typography>
                             )}
                           </Box>
+                        </TableCell>
+                        <TableCell>
+                          {user.assigned_branches?.length ? (
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                              {user.assigned_branches.map((branchId) => (
+                                <Chip
+                                  key={branchId}
+                                  label={branches.find(b => b.id === branchId)?.name || branchId}
+                                  size="small"
+                                  color="warning"
+                                  variant="outlined"
+                                />
+                              ))}
+                            </Box>
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">
+                              Not assigned — use Properties → Assign Warden
+                            </Typography>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Chip
