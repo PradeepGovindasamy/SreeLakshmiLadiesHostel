@@ -4,15 +4,10 @@ import {
   TextField, Button, FormControlLabel, Checkbox, MenuItem
 } from '@mui/material';
 
-const sharingOptions = [
-  { value: '1', label: '1-Sharing' },
-  { value: '2', label: '2-Sharing' },
-  { value: '3', label: '3-Sharing' },
-  { value: '4', label: '4-Sharing' },
-  { value: '5', label: '5-Sharing' },
-  { value: '6', label: '6-Sharing' },
-  { value: '7', label: '7-Sharing' }
-];
+const sharingOptions = Array.from({ length: 15 }, (_, index) => {
+  const value = String(index + 1);
+  return { value, label: `${value}-Sharing` };
+});
 
 function RoomDialog({ open, onClose, onSave, room, branches }) {
   const [formData, setFormData] = useState({
