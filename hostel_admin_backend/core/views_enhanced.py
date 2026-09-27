@@ -49,15 +49,21 @@ class RoleBasedPermission(permissions.BasePermission):
                     return True  # delegate to has_object_permission
 
                 if user_role == 'warden':
-                    perm_field = (
-                        'can_manage_rooms'
-                        if view.__class__.__name__ == 'EnhancedRoomViewSet'
-                        else 'can_manage_tenants'
-                    )
+                    is_room_create = view.__class__.__name__ == 'EnhancedRoomViewSet'
+                    perm_field = 'can_manage_rooms' if is_room_create else 'can_manage_tenants'
                     branch_id = (
                         request.data.get('branch')
                         or request.query_params.get('branch')
                     )
+                    # Tenant onboarding sends the room, not the branch.
+                    if not branch_id and not is_room_create:
+                        room_id = request.data.get('room')
+                        if room_id:
+                            branch_id = (
+                                Room.objects.filter(pk=room_id)
+                                .values_list('branch_id', flat=True)
+                                .first()
+                            )
                     if not branch_id:
                         logger.warning(
                             'Warden %s attempted to create without branch_id', request.user

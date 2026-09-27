@@ -32,17 +32,16 @@ import { useUser } from '../contexts/UserContext';
 
 const steps = ['Basic Information', 'Room Details', 'Pricing & Features', 'Cot Setup', 'Review & Save'];
 
-const MAX_SHARING = 15;
-
-const SHARING_LABELS = [
-  'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight',
-  'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen',
+const roomTypes = [
+  { value: 'single', label: 'One Sharing' },
+  { value: 'double', label: 'Two Sharing' },
+  { value: 'triple', label: 'Three Sharing' },
+  { value: 'quad', label: 'Four Sharing' },
+  { value: 'quintuple', label: 'Five Sharing' },
+  { value: 'sextuple', label: 'Six Sharing' },
+  { value: 'septuple', label: 'Seven Sharing' },
+  { value: 'octuple', label: 'Eight Sharing' }
 ];
-
-const roomTypes = SHARING_LABELS.map((label, index) => ({
-  value: String(index + 1),
-  label: `${label} Sharing`,
-}));
 
 const roomStatuses = [
   { value: 'available', label: 'Available' },
@@ -54,16 +53,32 @@ const roomStatuses = [
 function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isEdit = false }) {
   // Map backend sharing_type integer to frontend room_type string
   const mapSharingTypeToRoomType = (sharingType) => {
-    const n = Number(sharingType);
-    if (n >= 1 && n <= MAX_SHARING) return String(n);
-    return '2';
+    const mapping = {
+      1: 'single',
+      2: 'double', 
+      3: 'triple',
+      4: 'quad',
+      5: 'quintuple',
+      6: 'sextuple',
+      7: 'septuple',
+      8: 'octuple'
+    };
+    return mapping[sharingType] || 'double';
   };
 
   // Map frontend room_type string to backend sharing_type integer
   const mapRoomTypeToSharingType = (roomType) => {
-    const n = Number(roomType);
-    if (n >= 1 && n <= MAX_SHARING) return n;
-    return 2;
+    const mapping = {
+      'single': 1,
+      'double': 2,
+      'triple': 3, 
+      'quad': 4,
+      'quintuple': 5,
+      'sextuple': 6,
+      'septuple': 7,
+      'octuple': 8
+    };
+    return mapping[roomType] || 2;
   };
 
   const [activeStep, setActiveStep] = useState(0);
@@ -86,7 +101,7 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
     room_number: '',
     room_name: '',
     branch: '',
-    room_type: '2',
+    room_type: 'double',
     capacity: 2,
     current_occupancy: 0,
     floor: 1,
@@ -247,14 +262,32 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
     setFormData(prev => {
       const newData = { ...prev, [field]: value };
       
-      // Keep room type and capacity in sync (1 through 15 sharing)
+      // Auto-update capacity based on room type
       if (field === 'room_type') {
-        newData.capacity = mapRoomTypeToSharingType(value);
-      }
-      if (field === 'capacity') {
-        const n = Number(value);
-        if (n >= 1 && n <= MAX_SHARING) {
-          newData.room_type = String(n);
+        switch (value) {
+          case 'single':
+            newData.capacity = 1;
+            break;
+          case 'double':
+            newData.capacity = 2;
+            break;
+          case 'triple':
+            newData.capacity = 3;
+            break;
+          case 'quad':
+            newData.capacity = 4;
+            break;
+          case 'quintuple':
+            newData.capacity = 5;
+            break;
+          case 'sextuple':
+            newData.capacity = 6;
+            break;
+          case 'dormitory':
+            newData.capacity = 6;
+            break;
+          default:
+            newData.capacity = 2;
         }
       }
       
@@ -291,8 +324,8 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
         }
         break;
       case 1: // Room Details
-        if (formData.capacity < 1 || formData.capacity > MAX_SHARING) {
-          setError(`Capacity must be between 1 and ${MAX_SHARING}`);
+        if (formData.capacity < 1) {
+          setError('Capacity must be at least 1');
           return false;
         }
         if (formData.current_occupancy > formData.capacity) {
@@ -410,7 +443,7 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
       room_number: '',
       room_name: '',
       branch: '',
-      room_type: '2',
+      room_type: 'double',
       capacity: 2,
       current_occupancy: 0,
       floor: 1,
@@ -548,8 +581,7 @@ function RoomForm({ open, onClose, onSave, room = null, copyFromRoom = null, isE
                 label="Capacity *"
                 value={formData.capacity}
                 onChange={(e) => handleInputChange('capacity', parseInt(e.target.value))}
-                inputProps={{ min: 1, max: MAX_SHARING }}
-                helperText={`Maximum ${MAX_SHARING} sharing`}
+                inputProps={{ min: 1 }}
                 required
               />
             </Grid>

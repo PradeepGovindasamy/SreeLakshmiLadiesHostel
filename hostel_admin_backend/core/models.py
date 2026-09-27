@@ -70,7 +70,11 @@ class Room(models.Model):
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='rooms')
     room_name = models.CharField(max_length=50, null=True, blank=True)
     sharing_type = models.IntegerField(
-        choices=[(i, f'{i}-Sharing') for i in range(1, 16)],
+        choices=[
+            (1, '1-Sharing'), (2, '2-Sharing'), (3, '3-Sharing'), 
+            (4, '4-Sharing'), (5, '5-Sharing'), (6, '6-Sharing'), 
+            (7, '7-Sharing'), (8, '8-Sharing')
+        ],
         null=True, blank=True
     )
     attached_bath = models.BooleanField(default=False)
